@@ -146,6 +146,7 @@ class FeedsController extends AppController
         $this->set('scope', $scope);
     }
 
+    # look here
     public function view($feedId)
     {
         $this->CRUD->view($feedId, [
@@ -568,7 +569,7 @@ class FeedsController extends AppController
                 $jobId
             );
 
-            $message = __('Pull queued for background execution.');
+            $message = __('Pull queued for background execution. Job id ' . $jobId);
         } else {
             $result = $this->Feed->downloadFromFeedInitiator($feedId, $this->Auth->user());
             if (!$result) {
