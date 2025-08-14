@@ -25,7 +25,7 @@ class Module_tag_operation extends WorkflowBaseActionModule
         parent::__construct();
         $this->Tag = ClassRegistry::init('Tag');
         $this->Event = ClassRegistry::init('Event');
-        $this->Attribute = ClassRegistry::init('Attribute');
+        $this->Attribute = ClassRegistry::init('MispAttribute');
         $this->params = [
             [
                 'id' => 'scope',
