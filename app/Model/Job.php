@@ -22,21 +22,21 @@ class Job extends AppModel
         WORKER_CACHE = 'cache',
         WORKER_UPDATE = 'update';
 
-    private function __jobStatusConverter($status)
-    {
-        switch ($status) {
-            case "1":
-                return 'Waiting';
-            case "2":
-                return 'Running';
-            case "3":
-                return 'Failed';
-            case "4":
-                return 'Completed';
-            default:
-                return 'Unknown';
-        }
-    }
+    // private function __jobStatusConverter($status)
+    // {
+    //     switch ($status) {
+    //         case "1":
+    //             return 'Waiting';
+    //         case "2":
+    //             return 'Running';
+    //         case "3":
+    //             return 'Failed';
+    //         case "4":
+    //             return 'Completed';
+    //         default:
+    //             return 'Unknown';
+    //     }
+    // }
 
     // public function afterFind($results, $primary = false)
     // {

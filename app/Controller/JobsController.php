@@ -241,4 +241,22 @@ class JobsController extends AppController
             'backtrace' => $backtrace
         ];
     }
+
+    private function __jobStatusConverter($status)
+    {
+        switch ($status) {
+            case "1":
+                return 'Waiting';
+            case "2":
+                return 'Running';
+            case "3":
+                return 'Failed';
+            case "4":
+                return 'Completed';
+            default:
+                return 'Unknown';
+        }
+    }
 }
+
+    
