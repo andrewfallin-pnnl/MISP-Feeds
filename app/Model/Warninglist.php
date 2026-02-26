@@ -122,7 +122,7 @@ class Warninglist extends AppModel
         try {
             $redis = RedisTool::init();
         } catch (Exception $e) {
-            // fallback to default implementation when redis is not available
+            // fall back to default implementation when redis is not available
             $eventWarnings = [];
             foreach ($attributes as $pos => $attribute) {
                 $attributes[$pos] = $this->checkForWarning($attribute, $enabledWarninglists);
@@ -180,7 +180,12 @@ class Warninglist extends AppModel
                             'warninglist_name' => $warninglists[$warninglistId]['name'],
                             'warninglist_category' => $warninglists[$warninglistId]['category'],
                         ];
-                        $eventWarnings[$warninglistId] = $warninglists[$warninglistId]['name'];
+                        $category = $warninglists[$warninglistId]['category'];
+                        if ($category === "false_positive") {
+                            $eventWarnings["false_positive"][$warninglistId] = $warninglists[$warninglistId]['name'];
+                        } else {
+                            $eventWarnings["known"][$warninglistId] = $warninglists[$warninglistId]['name'];
+                        }
 
                         $store[$warninglistId] = [$match['value'], $match['match']];
                     }
@@ -206,7 +211,12 @@ class Warninglist extends AppModel
                         'warninglist_name' => $warninglists[$warninglistId]['name'],
                         'warninglist_category' => $warninglists[$warninglistId]['category'],
                     ];
-                    $eventWarnings[$warninglistId] = $warninglists[$warninglistId]['name'];
+                    $category = $warninglists[$warninglistId]['category'];
+                    if ($category === "false_positive") {
+                        $eventWarnings["false_positive"][$warninglistId] = $warninglists[$warninglistId]['name'];
+                    } else {
+                        $eventWarnings["known"][$warninglistId] = $warninglists[$warninglistId]['name'];
+                    }
                 }
             }
         }

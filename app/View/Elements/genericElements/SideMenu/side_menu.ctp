@@ -45,7 +45,7 @@ $divider = '<li class="divider"></li>';
                     ));
                     break;
                 case 'event':
-                    $eventId = (int)$event['Event']['id'];
+                    $eventId = Configure::read('MISP.use_uuids_in_urls') ? h($event['Event']['uuid']) : (int)$event['Event']['id'];
                     echo '<div id="hiddenSideMenuData" class="hidden" data-event-id="' . $eventId . '"></div>';
                     $mayModify = $mayModify ?? $this->Acl->canModifyEvent($event);
                     $mayPublish = $mayPublish ?? ($mayModify && $this->Acl->canPublishEvent($event));
@@ -248,6 +248,15 @@ $divider = '<li class="divider"></li>';
                                 ]
                             ),
                             'text' => __('Run Ad-Hoc Workflow')
+                        ));
+                        echo $this->element('/genericElements/SideMenu/side_menu_link', array(
+                            'onClick' => array(
+                                'function' => 'openGenericModal',
+                                'params' => [
+                                    $baseurl . '/events/recorrelateEvent/' . $eventId,
+                                ]
+                            ),
+                            'text' => __('Recorrelate Event')
                         ));
                     }
                     if ($this->Acl->canAccess('events', 'pushEventToKafka') &&
@@ -483,6 +492,22 @@ $divider = '<li class="divider"></li>';
                     }
                 break;
 
+                case 'event-collection-beta':
+                    ?>
+                        <div class="btn-group beta-create-event-group">
+                            <a href="<?= $baseurl ?>/events/add" class="btn btn-primary">
+                                <i class="fa fa-plus"></i> <?= __('Create Event') ?>
+                            </a>
+                            <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <span class="caret"></span>
+                                <span class="sr-only"><?= __('Toggle Dropdown') ?></span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-right">
+                                <li><a href="<?= $baseurl ?>/events/add_misp_export"><i class="fa fa-file-import"></i> <?= __('Create event from import') ?></a></li>
+                            </ul>
+                        </div>
+                    <?php
+                break;
                 case 'eventReports':
                     echo $this->element('/genericElements/SideMenu/side_menu_link', array(
                         'element_id' => 'index',
@@ -1022,7 +1047,7 @@ $divider = '<li class="divider"></li>';
                             echo $this->element('/genericElements/SideMenu/side_menu_link', array(
                                 'onClick' => array(
                                     'function' => 'initiatePasswordReset',
-                                    'params' => array($id)
+                                    'params' => array(h($id))
                                 ),
                                 'text' => __('Reset Password')
                             ));

@@ -314,13 +314,18 @@ class User extends AppModel
             $user_id = $action === 'add' ? 0 : $user['id'];
             $trigger_id = 'user-before-save';
             $workflowErrors = [];
+            $workflowData = $user;
+            if (isset($workflowData['password'])) {
+                unset($workflowData['password']);
+                unset($workflowData['confirm_password']);
+            }
             $logging = [
                 'model' => 'User',
                 'action' => $action,
                 'id' => $user_id,
                 'message' => __('The workflow `%s` prevented the saving of user %s', $trigger_id, $user_id),
             ];
-            return $this->executeTrigger($trigger_id, $user, $workflowErrors, $logging);
+            return $this->executeTrigger($trigger_id, $workflowData, $workflowErrors, $logging);
         }
         return true;
     }
@@ -339,12 +344,17 @@ class User extends AppModel
             )
         ) {
             $workflowErrors = [];
+            $workflowData = $user['User'];
+            if (isset($workflowData['password'])) {
+                unset($workflowData['password']);
+                unset($workflowData['confirm_password']);
+            }
             $logging = [
                 'model' => 'User',
                 'action' => $action,
                 'id' => $user['User']['id'],
             ];
-            $this->executeTrigger('user-after-save', $user['User'], $workflowErrors, $logging);
+            $this->executeTrigger('user-after-save', $workflowData, $workflowErrors, $logging);
         }
         if ($pubToZmq || $kafkaTopic) {
             if (!empty($this->data)) {
@@ -1172,7 +1182,7 @@ class User extends AppModel
                 $user,
                 Job::WORKER_PRIO,
                 'reset_all_sync_api_keys',
-                __('Reseting all API keys'),
+                __('Resetting all API keys'),
                 'Issuing new API keys to all sync users.'
             );
 
@@ -1908,6 +1918,9 @@ class User extends AppModel
         $periodicSettings = $this->fetchPeriodicSettingForUser($userId, true);
         $filters = $this->getUsablePeriodicSettingForUser($periodicSettings, $period, $lastdays);
         $filtersForRestSearch = $filters; // filters for restSearch are slightly different than fetchEvent
+        $filtersForfilterEventIds = $filters; // filters for restSearch are slightly different than fetchEvent
+        $eventid = $this->Event->filterEventIds($user, $filtersForfilterEventIds);
+        unset($filters['tags']);
         $filters['last'] = $this->resolveTimeDelta($filters['last']);
         $filters['sgReferenceOnly'] = true;
         $filters['includeEventCorrelations'] = !empty($periodicSettings['include_correlations']);
@@ -1916,6 +1929,7 @@ class User extends AppModel
         $filters['fetchFullClusters'] = true;
         $filters['fetchFullClusterRelationship'] = true;
         $filters['includeScoresOnEvent'] = true;
+        $filters['eventid'] = empty($eventid) ? -1 : $eventid;
         $events = $this->Event->fetchEvent($user, $filters);
 
         if (empty($events)) {
@@ -2159,18 +2173,22 @@ class User extends AppModel
         $token = RandomTool::random_str(true, 40);
         RedisTool::init()->set('misp:forgot:' . $token, $user['User']['id'], ['nx', 'ex' => 600]);
         $baseurl = Configure::check('MISP.external_baseurl') ? Configure::read('MISP.external_baseurl') : Configure::read('MISP.baseurl');
-        $body = __(
-            "Dear MISP user,\n\nyou have requested a password reset on the MISP instance at %s. Click the link below to change your password.\n\n%s\n\nThe link above is only valid for 10 minutes, feel free to request a new one if it has expired.\n\nIf you haven't requested a password reset, reach out to your admin team and let them know that someone has attempted it in your stead.\n\nMake sure you keep the contents of this e-mail confidential, do NOT ever forward it as it contains a reset token that is equivalent of a password if acted upon. The IP used to trigger the request was: %s\n\nBest regards,\nYour MISP admin team",
-            $baseurl,
-            $baseurl . '/users/password_reset/' . $token,
-            $ip
-        );
-        $bodyNoEnc = __(
-            "Dear MISP user,\n\nyou have requested a password reset on the MISP instance at %s, however, no valid encryption key was found for your user and thus we cannot deliver your reset token. Please get in touch with your org admin / with an instance site admin to ask for a reset.\n\nThe IP used to trigger the request was: %s\n\nBest regards,\nYour MISP admin team",
-            $baseurl,
-            $ip
-        );
-        $this->sendEmail($user, $body, $bodyNoEnc, __('MISP password reset'));
+        $default_forgot_email = [];
+        $default_forgot_email['enc'] = Configure::read('MISP.forgotPasswordText') ? 
+            Configure::read('MISP.default_forgot_email') :
+                'Dear MISP user,\n\nyou have requested a password reset on the MISP instance at $misp. Click the link below to change your password.\n\n\$reset_link\n\nThe link above is only valid for 10 minutes, feel free to request a new one if it has expired.\n\nIf you haven\'t requested a password reset, reach out to your admin team and let them know that someone has attempted it in your stead.\n\nMake sure you keep the contents of this e-mail confidential, do NOT ever forward it as it contains a reset token that is equivalent of a password if acted upon. The IP used to trigger the request was: $ip\n\nBest regards,\nYour MISP admin team';
+        $default_forgot_email['no_enc'] = Configure::read('MISP.default_forgot_email_no_enc') ? 
+            Configure::read('MISP.forgotPasswordTextNoEnc') :
+                'Dear MISP user,\n\nyou have requested a password reset on the MISP instance at $misp, however, no valid encryption key was found for your user and thus we cannot deliver your reset token. Please get in touch with your org admin / with an instance site admin to ask for a reset.\n\nThe IP used to trigger the request was: $ip\n\nBest regards,\nYour MISP admin team';
+        $body = [];
+        foreach ($default_forgot_email as $key => $value) {
+            $body[$key] = str_replace(
+                ['$misp', '$reset_link', '$ip'],
+                [$baseurl, $baseurl . '/users/password_reset/' . $token, $ip],
+                $value
+            );
+        }
+        $this->sendEmail($user, $body['enc'], $body['no_enc'], __('MISP password reset'));
         return true;
     }
 
@@ -2305,5 +2323,85 @@ class User extends AppModel
             }
         }
         return []; 
+    }
+
+    public function userIP($user)
+    {
+        $Server = ClassRegistry::init('Server');
+        $redis = $Server->setupRedis();
+        if (is_numeric($user)) {
+            $conditions = ['User.id' => $user];
+        } else {
+            $conditions = ['User.email' => $user];
+        }
+        $user = $this->find('first', array(
+            'recursive' => -1,
+            'contain' => ['Organisation', 'Role'],
+            'fields' => ['User.email', 'User.disabled', 'Organisation.*', 'Role.*', 'User.id'],
+            'conditions' => $conditions
+        ));
+        if (empty($user)) {
+            throw new NotFoundException(__('User not found.'));
+        }
+        $temp = ['Organisation' => $user['Organisation'], 'Role' => $user['Role']];
+        unset($user['Organisation']);
+        unset($user['Role']);
+        $user = $user['User'];
+        $user = array_merge($user, $temp);
+        $ips = $redis->smembers('misp:user_ip:' . $user['id']);
+        return ['ips' => $ips, 'User' => $user];
+    }
+
+    public function IPUser($ip)
+    {
+        $Server = ClassRegistry::init('Server');
+        $redis = $Server->setupRedis();
+        $user_id = $redis->get('misp:ip_user:' . $ip);
+        if (empty($user_id)) {
+            throw new NotFoundException(__('No Users found for the given IP.'));
+        }
+        $user = $this->find('first', array(
+            'recursive' => -1,
+            'contain' => ['Organisation', 'Role'],
+            'fields' => ['User.email', 'User.disabled', 'Organisation.*', 'Role.*', 'User.id'],
+            'conditions' => array('User.id' => $user_id)
+        ));
+        if (empty($user)) {
+            throw new NotFoundException(__('User not found.'));
+        }
+        $temp = ['Organisation' => $user['Organisation'], 'Role' => $user['Role']];
+        unset($user['Organisation']);
+        unset($user['Role']);
+        $user = $user['User'];
+        $user = array_merge($user, $temp);
+        return ['ip' => $ip, 'User' => $user];
+    }
+
+    public function getUserRestLimit($user, $Controller)
+    {
+        $divisors = [
+            'Attributes' => 1,
+            'Objects' => 3,
+            'Events' => 10
+        ];
+        if (!empty($user['Role'])){
+            $role = $user['Role'];
+        } else {
+            $Controller->loadModel('Role');
+            $role = $this->Role->find('first', [
+                'conditions' => ['Role.id' => $user['role_id']],
+                'recursive' => -1,
+                'fields' => ['Role.restsearch_limit_result', 'Role.perm_site_admin']
+            ])['Role'];
+        }
+        if (isset($role['restsearch_limit_result'])) {
+            $roleLimit = (int)$role['restsearch_limit_result'];
+        } else {
+            $roleLimit = $role['perm_site_admin'] ? 0 : (int) Configure::read('MISP.default_restsearch_limit');
+        }
+        if ($roleLimit > 0 && isset($divisors[$Controller->name])) {
+            $roleLimit = (int)ceil($roleLimit / $divisors[$Controller->name]);
+        }
+        return $roleLimit;
     }
 }

@@ -69,6 +69,7 @@ class UserSetting extends AppModel
         ),
         'homepage' => array(
             'placeholder' => ['path' => '/events/index'],
+            'validation' => 'validate_homepage',
         ),
         'default_restsearch_parameters' => array(
             'placeholder' => array(
@@ -109,7 +110,19 @@ class UserSetting extends AppModel
                 'tags' => '["tlp:red"]',
             ],
         ],
+        'ui_beta_opt_in' => [
+            'placeholder' => false,
+        ],
     );
+
+    public static function validate_homepage($value, $user)
+    {
+        $path = json_decode($value, true);
+        if (empty($path['path'])) {
+            return false;
+        }
+        return str_starts_with($path['path'], '/');
+    }
 
     // massage the data before we send it off for validation before saving anything
     public function beforeValidate($options = array())
@@ -219,6 +232,26 @@ class UserSetting extends AppModel
     }
 
     /**
+     * @param array $user
+     * @param string $setting
+     * @return bool|string
+     */
+    public function checkSettingValidation(array $user, $setting, $value)
+    {
+        if (!isset(self::VALID_SETTINGS[$setting]['validation'])) {
+            return true;
+        }
+
+        $funName = self::VALID_SETTINGS[$setting]['validation'];
+        $validationFn = ['UserSetting', $funName];
+        if (!empty($funName) && is_callable($validationFn)) {
+            $check = call_user_func($validationFn, $value, $user);
+            return $check;
+        }
+        return true;
+    }
+
+    /**
      * canModify expects an auth user object or a user ID and a loaded setting as input parameters
      * check if the user can modify/remove the given entry
      * returns true for site admins
@@ -279,6 +312,17 @@ class UserSetting extends AppModel
      public function getTagNumericalValueOverride($userId)
      {
          return $this->getValueForUser($userId, 'tag_numerical_value_override') ?: [];
+     }
+
+    /**
+     * Check if a user has opted into the beta UI
+     * @param int $userId
+     * @return bool
+     */
+     public function isUiBetaEnabled($userId)
+     {
+         $value = $this->getValueForUser($userId, 'ui_beta_opt_in');
+         return !empty($value);
      }
 
     /**
@@ -466,6 +510,10 @@ class UserSetting extends AppModel
         $settingPermCheck = $this->checkSettingAccess($user, $data['UserSetting']['setting']);
         if ($settingPermCheck !== true) {
             throw new MethodNotAllowedException(__('This setting is restricted and requires the following permission(s): %s', $settingPermCheck));
+        }
+        $settingValidationCheck = $this->checkSettingValidation($user, $data['UserSetting']['setting'], $data['UserSetting']['value']);
+        if ($settingValidationCheck !== true) {
+            throw new MethodNotAllowedException(__('Invalid setting value', $settingValidationCheck));
         }
         $userSetting['setting'] = $data['UserSetting']['setting'];
         if ($data['UserSetting']['value'] !== '') {

@@ -71,6 +71,23 @@ class FileAccessTool
      */
     public static function readJsonFromFile($file, $mustBeArray = false)
     {
+        // Use faster version of json_decode from simdjson PHP extension if this extension is installed
+        if (function_exists('simdjson_decode_from_stream')) {
+            $stream = fopen($file, "r");
+            if ($stream === false) {
+                throw new Exception("An error has occurred while attempt to open file `$file`.");
+            }
+            try {
+                $decoded = simdjson_decode_from_stream($stream, true);
+            } catch (SimdJsonException $e) {
+                throw new JsonException($e->getMessage(), $e->getCode(), $e);
+            }
+            if ($mustBeArray && !is_array($decoded)) {
+                throw new UnexpectedValueException('JSON must be array type, get ' . gettype($decoded));
+            }
+            return $decoded;
+        }
+
         $content = self::readFromFile($file);
         try {
             return $mustBeArray ? JsonTool::decodeArray($content) : JsonTool::decode($content);
@@ -227,5 +244,26 @@ class FileAccessTool
             $text = $alternate ? $alternate : '';
         }
         return $text;
+    }
+
+    /**
+     * @param string $filePath
+     * @param string $newName
+     * @return bool
+     */
+    public static function renameFile($filePath, $newName)
+    {
+        $directory = dirname($filePath);
+        $newPath = $directory . DS . $newName;
+
+        if (!file_exists($filePath)) {
+            return false;
+        }
+
+        if (rename($filePath, $newPath)) {
+            return true;
+        } else {
+            return false;
+        }
     }
 }

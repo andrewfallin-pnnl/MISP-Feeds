@@ -19,7 +19,11 @@ class Note extends AnalystData
         'note',
     ];
 
-    public $validate = [];
+    public const SEARCHABLE_FIELDS = [
+        'note',
+    ];
+
+    public $childValidate = [];
 
     public function beforeValidate($options = array())
     {

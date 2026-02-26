@@ -63,9 +63,10 @@ class CollectionsController extends AppController
 
     public function edit($id)
     {
+        $id = $this->Toolbox->findIdByUuid($this->Collection, $id);
         $this->Collection->current_user = $this->Auth->user();
         if (!$this->Collection->mayModify($this->Auth->user('id'), $id)) {
-            throw new MethodNotAllowedException(__('Invalid Collection or insuficient privileges'));
+            throw new MethodNotAllowedException(__('Invalid Collection or insufficient privileges'));
         }
         $params = [];
         if ($this->request->is('post') || $this->request->is('put')) {
@@ -117,8 +118,9 @@ class CollectionsController extends AppController
 
     public function delete($id)
     {
+        $id = $this->Toolbox->findIdByUuid($this->Collection, $id);
         if (!$this->Collection->mayModify($this->Auth->user('id'), $id)) {
-            throw new MethodNotAllowedException(__('Invalid Collection or insuficient privileges'));
+            throw new MethodNotAllowedException(__('Invalid Collection or insufficient privileges'));
         }
         $this->CRUD->delete($id);
         if ($this->IndexFilter->isRest()) {
@@ -128,11 +130,13 @@ class CollectionsController extends AppController
 
     public function view($id)
     {
+        $id = $this->Toolbox->findIdByUuid($this->Collection, $id);
         $this->set('mayModify', $this->Collection->mayModify($this->Auth->user('id'), $id));
         if (!$this->Collection->mayView($this->Auth->user('id'), $id)) {
-            throw new MethodNotAllowedException(__('Invalid Collection or insuficient privileges'));
+            throw new MethodNotAllowedException(__('Invalid Collection or insufficient privileges'));
         }
         $this->set('menuData', array('menuList' => 'collections', 'menuItem' => 'view'));
+        $user = $this->Auth->user();
         $params = [
             'contain' => [
                 'Orgc',
@@ -140,8 +144,8 @@ class CollectionsController extends AppController
                 'User',
                 'CollectionElement'
             ],
-            'afterFind' => function (array $collection){
-                return $this->Collection->rearrangeCollection($collection);
+            'afterFind' => function (array $collection) use ($user) {
+                return $this->Collection->rearrangeCollection($collection, $user);
             }
         ];
         $this->CRUD->view($id, $params);

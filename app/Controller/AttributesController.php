@@ -50,7 +50,18 @@ class AttributesController extends AppController
         }
     }
 
-    public function cleanDefaultFormValues(array $filters): array
+    private function __massageSearchFilters(array $filters): array
+    {
+        $multiLineFields = ['value', 'tags', 'org_id', 'sharing_group_id', 'uuid'];
+        foreach ($multiLineFields as $field) {
+            if (isset($filters[$field]) && strstr($filters[$field], "\n")) {
+                $filters[$field] = preg_split('/\n|\r\n?/', $filters[$field]);
+            }
+        }
+        return $filters;
+    }
+
+    private function __cleanDefaultFormValues(array $filters): array
     {
         foreach ($filters as $key => $value) {
             if (in_array($key, ['type', 'category']) && $value === 'ALL') {
@@ -62,8 +73,11 @@ class AttributesController extends AppController
             if ($key === 'to_ids' && $value === '0') {
                 unset($filters[$key]);
             }
+            if ($key === 'enforceWarninglist' && $value === '0') {
+                unset($filters[$key]);
+            }
             if (is_array($value)) {
-                $filters[$key] = $this->cleanDefaultFormValues($value);
+                $filters[$key] = $this->__cleanDefaultFormValues($value);
             } elseif ($value === '') {
                 unset($filters[$key]);
             }
@@ -84,22 +98,45 @@ class AttributesController extends AppController
         }
         $params['conditions']['AND'][] = $this->MispAttribute->buildConditions($user);
         $paramArray = [
-            'value' , 'type', 'category', 'org_id', 'tags', 'to_ids', 'first_seen', 'last_seen', 'limit', 'page', 'sort', 'direction'
+            'value' , 'type', 'category', 'org', 'tags', 'to_ids', 'first_seen', 'last_seen', 'search_token', 'uuid', 'page', 'limit', 'sort', 'direction', 'object_relation'
         ];
         $filterData = array(
             'request' => $this->request,
             'named_params' => $this->request->params['named'],
             'paramArray' => $paramArray,
-            'ordered_url_params' => func_get_args(),
-            'additional_delimiters' => PHP_EOL
+            'ordered_url_params' => func_get_args()
         );
         $exception = false;
         $filters = $this->_harvestParameters($filterData, $exception);
-        $filters = $this->cleanDefaultFormValues($filters);
+        if (!$this->_isRest()) {
+            $search_filters = $this->request->data;
+            if (isset($this->request->data['to_ids']) && $this->request->data['to_ids'] === '0') {
+                $search_filters['to_ids'] = [0,1];
+            }
+            $search_filters['published'] = [0,1];
+            $search_filters['flatten'] = true;
+            if ($this->request->is('post') && empty($filters['search_token'])) {
+                $search_token = $this->MispAttribute->setSearchParamsByToken($search_filters);
+                $this->set('search_token', $search_token);
+            } else {
+                if (!empty($filters['search_token'])) {
+                    $filters = $this->MispAttribute->getSearchParamsByToken($filters);
+                    $this->set('search_token', $filters['search_token']);
+                }
+            }
+        }
+        if (!$this->_isRest()) {
+            $filters = $this->__cleanDefaultFormValues($filters);
+            $filters = $this->__massageSearchFilters($filters);
+        }
         $request_filters = $filters;
         $conditions = $this->paginate['conditions'];
         $subqueryElements = $this->MispAttribute->Event->harvestSubqueryElements($filters);
         $filters = $this->MispAttribute->Event->addFiltersFromSubqueryElements($filters, $subqueryElements, $user);
+        $roleLimit = $this->User->getUserRestLimit($this->Auth->user(), $this);
+        if (empty($filters['limit']) || ($roleLimit != 0 && $filters['limit'] >= $roleLimit)) {
+            $filters['limit'] = $roleLimit;
+        }
         $request_filters = $filters;
         $params = array_merge($filters, [
             'limit' => $this->paginate['limit'] ?? null,
@@ -110,7 +147,7 @@ class AttributesController extends AppController
         }
         $this->set('params', $params);
         $conditions = $this->MispAttribute->buildFilterConditions($user, $filters, false);
-        $params = [];
+        $params = !empty($params['enforceWarninglist']) ? ['enforceWarninglist' => 1] : [];
         if (!empty($filters['direction'])) {
             $params['direction'] = $filters['direction'];
         }
@@ -125,6 +162,7 @@ class AttributesController extends AppController
             $params['conditions'] = $conditions;
         }
         $params['flatten'] = 1;
+        $params['includeWarninglistHits'] = 1;
         if ($this->_isRest()) {
             if (!empty($filters['page'])) {
                 $params['page'] = $filters['page'];
@@ -186,7 +224,6 @@ class AttributesController extends AppController
 
         list($attributes, $sightingsData) = $this->__searchUI($attributes, $user);
         $exports = array_keys($this->MispAttribute->validFormats);
-        $this->set('paramArray', array_merge($paramArray, ['?']));
         $this->set('exports', $exports);
         $request_filters = array_diff_key($request_filters, array_flip(['direction', 'page', 'limit', 'sort']));
         $export_filters = '/';
@@ -194,13 +231,22 @@ class AttributesController extends AppController
             foreach ($request_filters as $k => $v) {
                 if (is_array($v)) {
                     foreach ($v as $vv) {
-                        $export_filters .= $k . '[]:' . $vv . '/';
+                        $export_filters .= urlencode($k) . '[]:' . urlencode($vv) . '/';
                     }
                 } else {
-                    $export_filters .= $k . ':' . $v . '/';
+                    $export_filters .= urlencode($k) . ':' . urlencode($v) . '/';
                 }
             }
         }
+        if (empty($request_filters['to_ids'])) {
+            $request_filters['to_ids'] = [0,1];
+        }
+        if (empty($request_filters['published'])) {
+            $request_filters['published'] = [0,1];
+        }
+        $this->set('request_filters', $request_filters);
+        $this->set('paramArray', $paramArray);
+        $this->set('passedArgsArray', $this->passedArgs);
         $this->set('export_filters', $export_filters);
         $this->set('sightingsData', $sightingsData);
         $this->set('orgTable', array_column($orgTable, 'name', 'id'));
@@ -1766,7 +1812,7 @@ class AttributesController extends AppController
             $user = $this->Auth->user();
         }
         // if the user is authorised to use the api key then user will be populated with the user's account
-        // in addition we also set a flag indicating whether the user is a site admin or not.
+        // in addition we also set a flag indicating whether or not the user is a site admin.
         if (!$user) {
             throw new UnauthorizedException(__('This authentication key is not authorized to be used for exports. Contact your administrator.'));
         }
@@ -2546,16 +2592,7 @@ class AttributesController extends AppController
 
     public function describeTypes()
     {
-        $result = array();
-        foreach ($this->MispAttribute->typeDefinitions as $key => $value) {
-            $result['sane_defaults'][$key] = array('default_category' => $value['default_category'], 'to_ids' => $value['to_ids']);
-        }
-        $result['types'] = array_keys($this->MispAttribute->typeDefinitions);
-        $result['categories'] = array_keys($this->MispAttribute->categoryDefinitions);
-        foreach ($this->MispAttribute->categoryDefinitions as $cat => $data) {
-            $result['category_type_mappings'][$cat] = $data['types'];
-        }
-        return $this->RestResponse->viewData(['result' => $result], 'json');
+        return $this->RestResponse->viewData(['result' => $this->MispAttribute->describeTypes()], 'json');
     }
 
     public function attributeStatistics($type = 'type', $percentage = false)
@@ -2911,6 +2948,7 @@ class AttributesController extends AppController
                 $attribute['Attribute']['disable_correlation'] = 1;
             }
             $this->MispAttribute->save($attribute, ['parentEvent' => $attribute]);
+            $this->MispAttribute->touch($attribute);
             if ($this->_isRest()) {
                 return $this->RestResponse->saveSuccessResponse('attributes', 'toggleCorrelation', $id, false, 'Correlation ' . ($attribute['Attribute']['disable_correlation'] ? 'disabled' : 'enabled') . '.');
             } else {

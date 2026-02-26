@@ -2,21 +2,21 @@ openapi: 3.0.0
 
 info:
   title: MISP Automation API
-  version: "2.4"
+  version: "2.5"
   description: |
 
     ### Getting Started
 
     MISP API allows you to query, create, modify data models, such as [Events](https://www.circl.lu/doc/misp/GLOSSARY.html#misp-event),
     [Objects](https://www.circl.lu/doc/misp/misp-objects/), [Attributes](https://www.circl.lu/doc/misp/GLOSSARY.html#misp-attribute).
-    This is extremly useful for interconnecting MISP with external tools and feeding other systems with threat intel data.
+    This is extremely useful for interconnecting MISP with external tools and feeding other systems with threat intel data.
 
     It also lets you perform administrative tasks such as creating users, organisations, altering MISP settings, and much more.
 
     To get an API key there are several options:
     * **[UI]** Go to [My Profile -> Auth Keys](/auth_keys/index) section and click on `+ Add authentication key`
 
-    * **[UI]** As an admin go to the the [Administration -> List Users -> View](/admin/users/view/[id]) page of the user you want to create an auth key for and on the `Auth keys` section click on `+ Add authentication key`
+    * **[UI]** As an admin go to the [Administration -> List Users -> View](/admin/users/view/[id]) page of the user you want to create an auth key for and on the `Auth keys` section click on `+ Add authentication key`
 
     * **[CLI]** Use the following command: `./app/Console/cake user change_authkey [e-mail/user_id]`
 
@@ -59,11 +59,13 @@ servers:
   - url: https://misp.local
 tags:
   - name: Analyst Data
-    description: "Analyst Data allows analysts to share and add their own analysis to any MISP data having an UUID. They can be one of these three type: Analyst Note, Analyst Opionion or Analyst Relationship."
+    description: "Analyst Data allows analysts to share and add their own analysis to any MISP data having an UUID. They can be one of these three type: Analyst Note, Analyst Opinion or Analyst Relationship."
   - name: Attributes
     description: "Attributes in MISP can be network indicators (e.g. IP address), system indicators (e.g. a string in memory) or even bank account details."
     externalDocs:
       url: https://www.circl.lu/doc/misp/GLOSSARY.html#misp-attribute
+  - name: Collections
+    description: "MISP collections can be used to organise data shared by the community. These collections can be categorised based on commonalities or as part of the research process."
   - name: Events
     description: "MISP events are encapsulations for contextually related information represented as attributes and objects."
     externalDocs:
@@ -92,6 +94,10 @@ tags:
     description: "Sharing groups in MISP are a more granular way to create re-usable distribution lists for events/attributes that allow users to include organisations from their own instance (local organisations) as well as organisations from directly, or indirectly connected instances (external organisations)."
     externalDocs:
       url: https://www.circl.lu/doc/misp/sharing/#sharing-groups
+  - name: Sharing Group Blueprints
+    description: "Sharing group blueprints allow a user to programmatically define reusable blueprints for generating sharing groups, based on inheritance and various filters."
+    externalDocs:
+      url: https://www.misp-project.org/2022/03/02/MISP.2.4.154.released.html/
   - name: Feeds
     description: "Feeds are remote or local resources containing indicators that can be automatically imported into MISP at regular intervals. Feeds can be structured in [MISP format](https://www.circl.lu/doc/misp/GLOSSARY.html#misp-format), CSV format or even free-text format."
     externalDocs:
@@ -229,7 +235,7 @@ paths:
           $ref: "#/components/responses/ApiErrorResponse"
 
   /analystData/indexMinimal:
-    get:
+    post:
       summary: "List minimal Analyst data"
       operationId: indexMinimalAnalystData
       tags:
@@ -349,19 +355,19 @@ paths:
         - name: attributeId
           in: path
           description: Attribute ID or 'selected' to add tags to multiple attributes
-          required: false
+          required: true
           schema:
             type: string
         - name: tagId
           in: path
           description: Tag ID, tag name or tag collection ID (format collection_N)
-          required: false
+          required: true
           schema:
             type: string
         - name: local
           in: path
           description: Whether to add tag as local tag (1) or global tag (0). Leave the other path params empty if you want to add local tags using the json request body params
-          required: false
+          required: true
           schema:
             type: integer
             enum: [ 0, 1 ]
@@ -488,6 +494,108 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/EnrichAttributeResponse"
+        "403":
+          $ref: "#/components/responses/UnauthorizedApiErrorResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
+  /collections/add:
+    post:
+      summary: "Add a collection"
+      operationId: addCollection
+      tags:
+        - Collections
+      requestBody:
+        $ref: "#/components/requestBodies/AddCollectionRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/AddCollectionResponse"
+        "403":
+          $ref: "#/components/responses/UnauthorizedApiErrorResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
+  /collections/edit/{collectionId}:
+    post:
+      summary: "Edit a collection"
+      operationId: editCollection
+      tags:
+        - Collections
+      parameters:
+        - $ref: "#/components/parameters/collectionIdParameter"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BaseCollection"
+      responses:
+        "200":
+          $ref: "#/components/responses/EditCollectionResponse"
+        "403":
+          $ref: "#/components/responses/UnauthorizedApiErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundApiErrorResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
+  /collections/delete/{collectionId}:
+    delete:
+      summary: "Delete a collection"
+      operationId: deleteCollection
+      tags:
+        - Collections
+      parameters:
+        - $ref: "#/components/parameters/collectionIdParameter"
+      responses:
+        "200":
+          $ref: "#/components/responses/DeleteCollectionResponse"
+        "403":
+          $ref: "#/components/responses/UnauthorizedApiErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundApiErrorResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
+  /collections/view/{collectionId}:
+    get:
+      summary: "View a collection by ID"
+      operationId: getCollectionById
+      tags:
+        - Collections
+      parameters:
+        - $ref: "#/components/parameters/collectionIdParameter"
+      responses:
+        "200":
+          $ref: "#/components/responses/ViewCollectionResponse"
+        "403":
+          $ref: "#/components/responses/UnauthorizedApiErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundApiErrorResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
+  /collections/index/{filter}:
+    post:
+      summary: "Get a list of collections with optional filtering"
+      operationId: getCollections
+      tags:
+        - Collections
+      parameters:
+        - name: filter
+          in: path
+          description: "Optional filter for collections"
+          required: true
+          schema:
+            type: string
+            enum:
+              - "my_collections"
+              - "org_collections"
+      requestBody:
+        $ref: "#/components/requestBodies/SearchCollectionsRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/CollectionListResponse"
         "403":
           $ref: "#/components/responses/UnauthorizedApiErrorResponse"
         default:
@@ -1906,6 +2014,131 @@ paths:
         default:
           $ref: "#/components/responses/ApiErrorResponse"
 
+  /sharing_group_blueprints/add:
+    post:
+      summary: "Add a sharing group blueprint"
+      operationId: addSharingGroupBlueprint
+      tags:
+        - Sharing Group Blueprints
+      requestBody:
+        $ref: "#/components/requestBodies/AddSharingGroupBlueprintRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/SharingGroupBlueprintResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
+  /sharing_group_blueprints/delete/{sharingGroupBlueprintId}:
+    delete:
+      summary: "Delete a sharing group blueprint"
+      operationId: deleteSharingGroupBlueprint
+      tags:
+        - Sharing Group Blueprints
+      parameters:
+        - $ref: "#/components/parameters/sharingGroupBlueprintIdParameter"
+      responses:
+        "200":
+          $ref: "#/components/responses/SharingGroupBlueprintDeletedResponse"
+        "404":
+          $ref: "#/components/responses/SharingGroupBlueprintNotFoundResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
+  /sharing_group_blueprints/detach/{sharingGroupBlueprintId}:
+    post:
+      summary: "Detach the sharing group from a sharing group blueprint"
+      operationId: detachSharingGroupBlueprint
+      tags:
+        - Sharing Group Blueprints
+      parameters:
+        - $ref: "#/components/parameters/sharingGroupBlueprintIdParameter"
+      responses:
+        "200":
+          $ref: "#/components/responses/SharingGroupBlueprintDetachedResponse"
+        "404":
+          $ref: "#/components/responses/SharingGroupBlueprintNotFoundResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
+  /sharing_group_blueprints/edit/{sharingGroupBlueprintId}:
+    post:
+      summary: "Edit a sharing group blueprint"
+      operationId: editSharingGroupBlueprint
+      tags:
+        - Sharing Group Blueprints
+      parameters:
+        - $ref: "#/components/parameters/sharingGroupBlueprintIdParameter"
+      requestBody:
+        $ref: "#/components/requestBodies/EditSharingGroupBlueprintRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/SharingGroupBlueprintResponse"
+        "404":
+          $ref: "#/components/responses/SharingGroupBlueprintNotFoundResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
+  /sharing_group_blueprints/execute/{sharingGroupBlueprintId}:
+    post:
+      summary: "Execute a sharing group blueprint, regenerating the sharing group"
+      operationId: executeSharingGroupBlueprint
+      tags:
+        - Sharing Group Blueprints
+      parameters:
+        - $ref: "#/components/parameters/sharingGroupBlueprintIdParameter"
+      responses:
+        "200":
+          $ref: "#/components/responses/SharingGroupBlueprintExecutedResponse"
+        "404":
+          $ref: "#/components/responses/SharingGroupBlueprintNotFoundResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
+  /sharing_group_blueprints/index:
+    get:
+      summary: "View the list of sharing group blueprints"
+      operationId: viewSharingGroupBlueprints
+      tags:
+        - Sharing Group Blueprints
+      responses:
+        "200":
+          $ref: "#/components/responses/SharingGroupBlueprintIndexResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
+  /sharing_group_blueprints/view/{sharingGroupBlueprintId}:
+    get:
+      summary: "View a sharing group blueprint"
+      operationId: viewSharingGroupBlueprint
+      tags:
+        - Sharing Group Blueprints
+      parameters:
+        - $ref: "#/components/parameters/sharingGroupBlueprintIdParameter"
+      responses:
+        "200":
+          $ref: "#/components/responses/SharingGroupBlueprintResponse"
+        "404":
+          $ref: "#/components/responses/SharingGroupBlueprintNotFoundResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
+  /sharing_group_blueprints/viewOrgs/{sharingGroupBlueprintId}:
+    get:
+      summary: "View a sharing group blueprint's organisation filter result"
+      description: "View the list of organisations that would become part of the sharing group, on execution of the blueprint. This allows you to check the results of the currently set filters in a blueprint."
+      operationId: viewOrgsSharingGroupBlueprint
+      tags:
+        - Sharing Group Blueprints
+      parameters:
+        - $ref: "#/components/parameters/sharingGroupBlueprintIdParameter"
+      responses:
+        "200":
+          $ref: "#/components/responses/SharingGroupBlueprintViewOrgsResponse"
+        "404":
+          $ref: "#/components/responses/SharingGroupBlueprintNotFoundResponse"
+        default:
+          $ref: "#/components/responses/ApiErrorResponse"
+
   /feeds:
     get:
       summary: "Get a list of feeds"
@@ -2978,6 +3211,8 @@ components:
     MinimalAnalystDataEmpty:
       description: "Minimal Analyst Data"
       type: array
+      items:
+        type: object
       maxItems: 0
 
     # Attributes
@@ -3310,7 +3545,7 @@ components:
         $ref: "#/components/schemas/AttributeRestSearchListItem"
 
     AttributeStatisticsResponse:
-      description: Dictionary of attribute types/categories showing the ammount of occurences/percentage.
+      description: Dictionary of attribute types/categories showing the amount of occurrences/percentage.
       type: object
       example:
         - "Antivirus detection": "10"
@@ -4273,6 +4508,17 @@ components:
           items:
             $ref: "#/components/schemas/GalaxyElement"
 
+    GalaxyClusterNoIdWithGalaxy:
+      allOf:
+        - $ref: "#/components/schemas/GalaxyClusterNoId"
+        - type: object
+          properties:
+            Galaxy:
+              type: object
+              properties:
+                uuid:
+                  $ref: "#/components/schemas/UUID"
+
     GalaxyCluster:
       description: "MISP galaxy is a simple method to express a large object called cluster that can be attached to MISP events or attributes."
       allOf:
@@ -4370,12 +4616,7 @@ components:
       type: object
       properties:
         GalaxyCluster:
-          $ref: "#/components/schemas/GalaxyClusterNoId"
-        Galaxy:
-          type: object
-          properties:
-            uuid:
-              $ref: "#/components/schemas/UUID"
+          $ref: "#/components/schemas/GalaxyClusterNoIdWithGalaxy"
 
     # Tags
     TagId:
@@ -4665,7 +4906,7 @@ components:
                     - "tlp:red"
                     - "%privint%"
 
-    TagNumbericalValueOverrideUserSetting:
+    TagNumericalValueOverrideUserSetting:
       type: object
       example:
         - "false-positive:risk='medium'": 99
@@ -4707,7 +4948,7 @@ components:
             - $ref: "#/components/schemas/DashboardAccessUserSetting"
             - $ref: "#/components/schemas/HomepageUserSetting"
             - $ref: "#/components/schemas/DefaultRestSearchParametersUserSetting"
-            - $ref: "#/components/schemas/TagNumbericalValueOverrideUserSetting"
+            - $ref: "#/components/schemas/TagNumericalValueOverrideUserSetting"
             - $ref: "#/components/schemas/EventIndexHideColumnsUserSetting"
         user_id:
           $ref: "#/components/schemas/UserId"
@@ -4730,7 +4971,7 @@ components:
         default_restsearch_parameters:
           $ref: "#/components/schemas/DefaultRestSearchParametersUserSetting"
         tag_numerical_value_override:
-          $ref: "#/components/schemas/TagNumbericalValueOverrideUserSetting"
+          $ref: "#/components/schemas/TagNumericalValueOverrideUserSetting"
         event_index_hide_columns:
           $ref: "#/components/schemas/EventIndexHideColumnsUserSetting"
 
@@ -4929,7 +5170,7 @@ components:
     ServerName:
       type: string
       maxLength: 255
-      example: "Phising Server"
+      example: "Phishing Server"
 
     ServerNoId:
       type: object
@@ -5223,7 +5464,7 @@ components:
         - "misp"
 
     FeedInputSource:
-      description: "Specify whether the source (url field) is a directory (local) or an genuine url (network)."
+      description: "Specify whether the source (url field) is a directory (local) or a genuine url (network)."
       type: string
       enum:
         - "local"
@@ -5597,12 +5838,22 @@ components:
           example: "publish"
 
     # Sharing Groups
-    SharingGroupId:
+    SharingGroupIntId:
       type: string
       nullable: true
       pattern: '^\d+$|^$'
       maxLength: 10
       example: "1"
+
+    SharingGroupUuidId:
+      type: string
+      format: uuid
+      nullable: true
+
+    SharingGroupId:
+      oneOf:
+        - $ref: "#/components/schemas/SharingGroupIntId"
+        - $ref: "#/components/schemas/SharingGroupUuidId"
 
     SharingGroupServerId:
       type: string
@@ -5631,6 +5882,13 @@ components:
     SharingGroupReleasability:
       type: string
       maxLength: 65535
+
+    SharingGroupBlueprintId:
+      type: string
+      nullable: true
+      pattern: '^\d+$|^$'
+      maxLength: 10
+      example: "1"
 
     SlimSharingGroupNoId:
       type: object
@@ -5752,6 +6010,48 @@ components:
           type: boolean
         deletable:
           type: boolean
+
+    SharingGroupBlueprintAdd:
+      properties:
+        SharingGroupBlueprint:
+          allOf:
+            - $ref: "#/components/schemas/SharingGroupBlueprintEdit"
+            - type: object
+              properties:
+                sharing_group_id:
+                  $ref: "#/components/schemas/SharingGroupIntId"
+
+    SharingGroupBlueprintEdit:
+      type: object
+      properties:
+        name:
+          type: string
+        rules:
+          type: string
+          description: "String encoded JSON. Supported operands are OR, AND and NOT. Supported filters, as single values or list, are: org_id, org_uuid, org_name, org_nationality, org_sector, org_type, sharing_group_id and sharing_group_uuid."
+          example: "{\"AND\":{\"OR\":{\"org_id\":[1,2],\"org_uuid\":[\"3e0d3fc7-972a-4788-9161-cc250df116f9\",\"26f07156-948c-4b7f-ac2c-921e29a319b4\"],\"org_name\":\"Example name\",\"org_sector\":\"Example sector\",\"org_type\":\"Example Type\",\"sharing_group_id\":5,\"sharing_group_uuid\":\"bc8cd878-c22e-400b-892a-e204d5f1d4bd\",\"org_nationality\":[\"Example nationality 1\",\"Example nationality 2\"]},\"NOT\":{\"org_nationality\":[\"Example nationality a\",\"Example nationality b\"]}}}"
+
+    FullSharingGroupBlueprint:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/SharingGroupBlueprintId"
+        uuid:
+          $ref: "#/components/schemas/UUID"
+        name:
+          type: string
+        timestamp:
+          $ref: "#/components/schemas/Timestamp"
+        user_id:
+          $ref: "#/components/schemas/UserId"
+        org_id:
+          $ref: "#/components/schemas/OrganisationId"
+        sharing_group_id:
+          $ref: "#/components/schemas/SharingGroupId"
+        rules:
+          type: string
+          example: "{\"AND\":{\"OR\":{\"org_id\":[1,2],\"org_uuid\":[\"3e0d3fc7-972a-4788-9161-cc250df116f9\",\"26f07156-948c-4b7f-ac2c-921e29a319b4\"],\"org_name\":\"Example name\",\"org_sector\":\"Example sector\",\"org_type\":\"Example Type\",\"sharing_group_id\":5,\"sharing_group_uuid\":\"bc8cd878-c22e-400b-892a-e204d5f1d4bd\",\"org_nationality\":[\"Example nationality 1\",\"Example nationality 2\"]},\"NOT\":{\"org_nationality\":[\"Example nationality a\",\"Example nationality b\"]}}}"
+
 
     # Logs
     LogActionType:
@@ -6093,6 +6393,7 @@ components:
           * `3` - All communities
           * `4` - Sharing group
           * `5` - Inherit Event
+      example: "4"
 
     ThreatLevelId:
       type: string
@@ -6158,9 +6459,17 @@ components:
       default: false
 
     SoftDeletedFlagValuesToInclude:
-      description: 'Whether to include soft-deleted attributes. Default value 0. If set to 1, only deleted attributes will be returned. If set to [0,1], both deleted and non-deleted attributes wil be returned.'
+      description: 'Whether to include soft-deleted attributes. Default value 0. If set to 1, only deleted attributes will be returned. If set to [0,1], both deleted and non-deleted attributes will be returned.'
       type: boolean
       default: false
+
+    ExtendingRestSearchFlag:
+      description: "Whether to include events that are extending another one. If set to 1, only events extending another will be returned. If set to 0, only events that are not extending another will be returned. Omit or [0,1] to disregard extension state."
+      type: boolean
+    
+    ExtendedRestSearchFlag:
+      description: "Whether to include events that are extended by another one. If set to 1, only events extended by another will be returned. If set to 0, only events that are not extended by another will be returned. Omit or [0,1] to disregard extension state."
+      type: boolean
 
     PublishedFlag:
       type: boolean
@@ -6221,6 +6530,7 @@ components:
       minimum: 1
 
     LimitSearchFilter:
+      description: "Maximum number of results to be returned. Can't be greater than the one set for your role. 0 means maximum."
       type: integer
       format: int32
       nullable: true
@@ -6648,6 +6958,129 @@ components:
           type: string
           example: "/users/totp_delete/1"
 
+    CollectionId:
+      type: string
+      pattern: "^\\d+$"
+      maxLength: 10
+      example: "12345"
+
+    CollectionElementId:
+      type: string
+      pattern: "^\\d+$"
+      maxLength: 10
+      example: "12345"
+
+    CollectionType:
+      type: string
+      enum:
+        - "campaign"
+        - "intrusion_set"
+        - "named_threat"
+        - "other"
+        - "research"
+
+    BaseCollection:
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/CollectionType"
+        name:
+          type: string
+          maxLength: 191
+          example: "APT Campaign Collection"
+        description:
+          $ref: "#/components/schemas/CollectionDescription"
+        distribution:
+          $ref: "#/components/schemas/DistributionLevelId"
+        sharing_group_id:
+          $ref: "#/components/schemas/SharingGroupId"
+
+    CollectionAddEdit:
+      allOf:
+        - type: object
+          properties:
+            id:
+              $ref: "#/components/schemas/CollectionId"
+            org_id:
+              $ref: "#/components/schemas/OrganisationId"
+            orgc_id:
+              $ref: "#/components/schemas/OrganisationId"
+            uuid:
+              $ref: "#/components/schemas/UUID"
+            created:
+              type: string
+              example: "2024-03-19 11:10:24"
+            modified:
+              type: string
+              example: "2024-03-19 11:10:24"
+            user_id:
+              $ref: "#/components/schemas/UserId"
+        - $ref: "#/components/schemas/BaseCollection"
+
+    CollectionFullNoElements:
+      allOf:
+        - type: object
+          properties:
+            id:
+              $ref: "#/components/schemas/CollectionId"
+            org_id:
+              $ref: "#/components/schemas/OrganisationId"
+            orgc_id:
+              $ref: "#/components/schemas/OrganisationId"
+            uuid:
+              $ref: "#/components/schemas/UUID"
+            created:
+              type: string
+              example: "2024-03-19 11:10:24"
+            modified:
+              type: string
+              example: "2024-03-19 11:10:24"
+            Org:
+              $ref: "#/components/schemas/EventOrganisation"
+            Orgc:
+              $ref: "#/components/schemas/EventOrganisation"
+        - $ref: "#/components/schemas/BaseCollection"
+
+    CollectionFull:
+      allOf:
+        - type: object
+          properties:
+            CollectionElement:
+              $ref: "#/components/schemas/CollectionElementList"
+        - $ref: "#/components/schemas/CollectionFullNoElements"
+
+    CollectionDescription:
+      type: string
+      maxLength: 16777215
+      example: "This is a dummy description, for a collection about Aiur."
+
+    CollectionElementDescription:
+      type: string
+      maxLength: 16777215
+      example: "This is a dummy description, for a collection element."
+
+    CollectionElement:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/CollectionElementId"
+        uuid:
+          $ref: "#/components/schemas/UUID"
+        collection_id:
+          $ref: "#/components/schemas/CollectionId"
+        element_uuid:
+          $ref: "#/components/schemas/UUID"
+        element_type:
+          type: string
+          enum: [ "Event", "GalaxyCluster" ]
+        description:
+          $ref: "#/components/schemas/CollectionElementDescription"
+
+    CollectionElementList:
+      type: array
+      items:
+        $ref: "#/components/schemas/CollectionElement"
+
   parameters:
     eventIdParameter:
       name: eventId
@@ -6813,6 +7246,16 @@ components:
       name: sharingGroupId
       in: path
       description: "UUID or numeric ID of the sharing group"
+      required: true
+      schema:
+        oneOf:
+          - $ref: "#/components/schemas/SharingGroupId"
+          - $ref: "#/components/schemas/UUID"
+
+    sharingGroupBlueprintIdParameter:
+      name: sharingGroupBlueprintId
+      in: path
+      description: "UUID or numeric ID of the sharing group blueprint"
       required: true
       schema:
         oneOf:
@@ -7025,6 +7468,16 @@ components:
       schema:
         $ref: "#/components/schemas/AnalystObjectType"
 
+    collectionIdParameter:
+      name: collectionId
+      in: path
+      description: "UUID or numeric ID of the collection"
+      required: true
+      schema:
+        oneOf:
+          - $ref: "#/components/schemas/CollectionId"
+          - $ref: "#/components/schemas/UUID"
+
   securitySchemes:
     ApiKeyAuth:
       type: apiKey
@@ -7065,6 +7518,18 @@ components:
           schema:
             $ref: "#/components/schemas/AttributeNoId"
 
+    AddCollectionRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            allOf:
+              - type: object
+                properties:
+                  uuid:
+                    $ref: "#/components/schemas/UUID"
+              - $ref: "#/components/schemas/BaseCollection"
+
     EditAttributeRequest:
       required: true
       content:
@@ -7092,6 +7557,26 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/EventNoId"
+
+    SearchCollectionsRequest:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              Collection.uuid:
+                type: string
+                maxLength: 36
+                example: "c99506a6-%"
+              Collection.type:
+                type: string
+                example: "campaign%"
+              Collection.name:
+                type: string
+                maxLength: 191
+                example: "APT Campaign%"
+
 
     SearchEventRequest:
       required: true
@@ -7141,7 +7626,7 @@ components:
                 description: "Filter events by matching the event info text"
                 type: string
                 nullable: true
-                example: "Phishing campaing"
+                example: "Phishing campaign"
               tag:
                 $ref: "#/components/schemas/TagName"
               tags:
@@ -7161,6 +7646,10 @@ components:
                 $ref: "#/components/schemas/AnalysisLevelId"
               threatlevel:
                 $ref: "#/components/schemas/ThreatLevelId"
+              extending:
+                $ref: "#/components/schemas/ExtendingRestSearchFlag"
+              extended:
+                $ref: "#/components/schemas/ExtendedRestSearchFlag"
               email:
                 description: "Filter events by matching the event creator user email"
                 type: string
@@ -7273,6 +7762,10 @@ components:
                 $ref: "#/components/schemas/ObjectRelationRestSearchFilter"
               threat_level_id:
                 $ref: "#/components/schemas/ThreatLevelId"
+              extending:
+                $ref: "#/components/schemas/ExtendingRestSearchFlag"
+              extended:
+                $ref: "#/components/schemas/ExtendedRestSearchFlag"
               returnFormat:
                 $ref: "#/components/schemas/EventsRestSearchReturnFormat"
 
@@ -7319,22 +7812,44 @@ components:
                 type: object
                 properties:
                   default:
-                    description: "`true` to filter out galaxy clusters with `default=true` set."
                     type: boolean
+                    description: >
+                      Include default galaxy clusters (`GalaxyCluster.default = true`).
+                      This flag is additive with `custom`. If both are true, both default
+                      and custom clusters are included. If neither is true, no clusters
+                      are returned.
                   custom:
-                    description: "`true` to filter out galaxy clusters with `default=false` set"
                     type: boolean
+                    description: >
+                      Include custom galaxy clusters (`GalaxyCluster.default = false`).
+                      This flag is additive with `default`. If both are true, both default
+                      and custom clusters are included. If neither is true, no clusters
+                      are returned.
                   distribution:
-                    $ref: "#/components/schemas/DistributionLevelId"
+                    description: >
+                      Filter galaxy clusters by exact distribution level.
+                      May be provided as a single distribution ID or as a list of IDs.
+                      When a list is provided, clusters matching any of the given
+                      distribution levels are returned. This parameter is an exact
+                      metadata filter and does not perform access control.
+                    oneOf:
+                      - $ref: "#/components/schemas/DistributionLevelId"
+                      - type: array
+                        items:
+                          $ref: "#/components/schemas/DistributionLevelId"
                   format:
-                    description: "If set to `misp-galaxy` result set is in the misp-galaxy format."
                     type: string
                     enum:
                       - "default"
                       - "misp-galaxy"
+                    description: >
+                      Output format of the export. If set to `misp-galaxy`,
+                      the result set is returned in the canonical misp-galaxy format.
                   download:
-                    description: "`true` returns the response as a json file attachment, `false` returns the response in the response body."
                     type: boolean
+                    description: >
+                      If true, return the response as a downloadable JSON attachment.
+                      If false, return the response body inline.
 
     AttachGalaxyClusterRequest:
       content:
@@ -7492,6 +8007,23 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/SharingGroup"
+
+    AddSharingGroupBlueprintRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/SharingGroupBlueprintAdd"
+
+    EditSharingGroupBlueprintRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              SharingGroupBlueprint:
+                $ref: "#/components/schemas/SharingGroupBlueprintEdit"
 
     AddFeedRequest:
       content:
@@ -7764,10 +8296,10 @@ components:
               uuid:
                 $ref: "#/components/schemas/UUID"
               authkey_start:
-                description: "Search term matching the first 4 characers of the authkey"
+                description: "Search term matching the first 4 characters of the authkey"
                 type: string
               authkey_end:
-                description: "Search term matching the last 4 characers of the authkey"
+                description: "Search term matching the last 4 characters of the authkey"
                 type: string
               created:
                 $ref: "#/components/schemas/DateRestSearchFilter"
@@ -7849,7 +8381,7 @@ components:
               - $ref: "#/components/schemas/DashboardAccessUserSetting"
               - $ref: "#/components/schemas/HomepageUserSetting"
               - $ref: "#/components/schemas/DefaultRestSearchParametersUserSetting"
-              - $ref: "#/components/schemas/TagNumbericalValueOverrideUserSetting"
+              - $ref: "#/components/schemas/TagNumericalValueOverrideUserSetting"
               - $ref: "#/components/schemas/EventIndexHideColumnsUserSetting"
 
     AddEventReportRequest:
@@ -7959,11 +8491,11 @@ components:
             type: object
             properties:
               saved:
-                description: "`true` if the tag was succesfully added, `false` if it failed"
+                description: "`true` if the tag was successfully added, `false` if it failed"
                 type: boolean
                 nullable: false
               success:
-                description: "Present if the tag was succesfully added"
+                description: "Present if the tag was successfully added"
                 type: string
                 nullable: true
                 example: "Tag added."
@@ -7983,11 +8515,11 @@ components:
             type: object
             properties:
               saved:
-                description: "`true` if the tag was succesfully removed, `false` if it failed"
+                description: "`true` if the tag was successfully removed, `false` if it failed"
                 type: boolean
                 nullable: false
               success:
-                description: "Present if the tag was succesfully added"
+                description: "Present if the tag was successfully added"
                 type: string
                 nullable: true
                 example: "Tag removed."
@@ -8041,7 +8573,7 @@ components:
             type: object
             properties:
               saved:
-                description: "Present and `true` if the attribute was succesfully enriched."
+                description: "Present and `true` if the attribute was successfully enriched."
                 type: boolean
               success:
                 description: "Status message of the operation."
@@ -8078,10 +8610,10 @@ components:
             type: object
             properties:
               saved:
-                description: "`true` if the event was succesfully deleted, `false` if it failed"
+                description: "`true` if the event was successfully deleted, `false` if it failed"
                 type: boolean
               success:
-                description: "`true` if the event was succesfully deleted, `false` if it failed"
+                description: "`true` if the event was successfully deleted, `false` if it failed"
                 nullable: true
                 type: boolean
               name:
@@ -8107,10 +8639,10 @@ components:
             type: object
             properties:
               saved:
-                description: "`true` if the event was succesfully deleted, `false` if it failed"
+                description: "`true` if the event was successfully deleted, `false` if it failed"
                 type: boolean
               success:
-                description: "`true` if the event was succesfully deleted, `false` if it failed"
+                description: "`true` if the event was successfully deleted, `false` if it failed"
                 nullable: true
                 type: boolean
               name:
@@ -8136,10 +8668,10 @@ components:
             type: object
             properties:
               saved:
-                description: "`true` if the event was succesfully deleted, `false` if it failed"
+                description: "`true` if the event was successfully deleted, `false` if it failed"
                 type: boolean
               success:
-                description: "`true` if the event was succesfully deleted, `false` if it failed"
+                description: "`true` if the event was successfully deleted, `false` if it failed"
                 nullable: true
                 type: boolean
               name:
@@ -8165,10 +8697,10 @@ components:
             type: object
             properties:
               saved:
-                description: "`true` if the event report was succesfully created, `false` if it failed"
+                description: "`true` if the event report was successfully created, `false` if it failed"
                 type: boolean
               success:
-                description: "`true` if the event report was succesfully created, `false` if it failed"
+                description: "`true` if the event report was successfully created, `false` if it failed"
                 nullable: true
                 type: boolean
               name:
@@ -8194,11 +8726,11 @@ components:
             type: object
             properties:
               saved:
-                description: "`true` if the tag was succesfully added, `false` if it failed"
+                description: "`true` if the tag was successfully added, `false` if it failed"
                 type: boolean
                 nullable: false
               success:
-                description: "Present if the tag was succesfully added"
+                description: "Present if the tag was successfully added"
                 type: string
                 nullable: true
                 example: "Tag added."
@@ -8218,11 +8750,11 @@ components:
             type: object
             properties:
               saved:
-                description: "`true` if the tag was succesfully removed, `false` if it failed"
+                description: "`true` if the tag was successfully removed, `false` if it failed"
                 type: boolean
                 nullable: false
               success:
-                description: "Present if the tag was succesfully added"
+                description: "Present if the tag was successfully added"
                 type: string
                 nullable: true
                 example: "Tag removed."
@@ -8342,7 +8874,7 @@ components:
             type: object
             properties:
               saved:
-                description: "Present and `true` if the event was succesfully enriched."
+                description: "Present and `true` if the event was successfully enriched."
                 type: boolean
               success:
                 description: "Status message of the operation."
@@ -8390,11 +8922,11 @@ components:
             type: object
             properties:
               saved:
-                description: "Present and `true` if the galaxies were succesfully updated."
+                description: "Present and `true` if the galaxies were successfully updated."
                 nullable: true
                 type: boolean
               success:
-                description: "Present and `true` if the galaxies were succesfully updated."
+                description: "Present and `true` if the galaxies were successfully updated."
                 nullable: true
                 type: boolean
               name:
@@ -8415,11 +8947,11 @@ components:
             type: object
             properties:
               saved:
-                description: "Present and `true` if the galaxy was succesfully removed."
+                description: "Present and `true` if the galaxy was successfully removed."
                 nullable: true
                 type: boolean
               success:
-                description: "Present and `true` if the galaxy was succesfully removed."
+                description: "Present and `true` if the galaxy was successfully removed."
                 nullable: true
                 type: boolean
               name:
@@ -8440,11 +8972,11 @@ components:
             type: object
             properties:
               saved:
-                description: "Present and `true` if the galaxy was succesfully imported."
+                description: "Present and `true` if the galaxy was successfully imported."
                 nullable: true
                 type: boolean
               success:
-                description: "Present and `true` if the galaxy was succesfully imported."
+                description: "Present and `true` if the galaxy was successfully imported."
                 nullable: true
                 type: boolean
               name:
@@ -8476,7 +9008,7 @@ components:
             type: object
             properties:
               saved:
-                description: "Present and `true` if the galaxy cluster was succesfully attached."
+                description: "Present and `true` if the galaxy cluster was successfully attached."
                 type: boolean
               success:
                 description: "Status message of the operation."
@@ -8562,10 +9094,10 @@ components:
                 type: boolean
               name:
                 type: string
-                example: "Galaxy cluster successfuly soft deleted."
+                example: "Galaxy cluster successfully soft deleted."
               message:
                 type: string
-                example: "Galaxy cluster successfuly soft deleted."
+                example: "Galaxy cluster successfully soft deleted."
               url:
                 type: string
                 example: "/galaxy_clusters/delete/1"
@@ -9406,6 +9938,144 @@ components:
               deletable:
                 type: boolean
 
+    SharingGroupBlueprintResponse:
+      description: "Sharing group blueprint response"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              SharingGroupBlueprint:
+                $ref: "#/components/schemas/FullSharingGroupBlueprint"
+
+    SharingGroupBlueprintViewOrgsResponse:
+      description: "Sharing group blueprint viewOrgs response"
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              type: object
+              properties:
+                Organisation:
+                  type: object
+                  properties:
+                    id:
+                      $ref: "#/components/schemas/OrganisationId"
+                    uuid:
+                      $ref: "#/components/schemas/UUID"
+                    name:
+                      type: string
+                      example: "Axiom"
+                    sector:
+                      type: string
+                      example: "Esports"
+                    type:
+                      type: string
+                      example: "Commercial"
+                    nationality:
+                      type: string
+                      example: "South Korea"
+
+    SharingGroupBlueprintIndexResponse:
+      description: "Sharing group blueprint index response"
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              type: object
+              properties:
+                SharingGroupBlueprint:
+                  $ref: "#/components/schemas/FullSharingGroupBlueprint"
+
+    SharingGroupBlueprintNotFoundResponse:
+      description: "Response when no valid sharing group blueprint was found"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "Invalid SharingGroupBlueprint."
+              message:
+                type: string
+                example: "Invalid SharingGroupBlueprint."
+              url:
+                type: string
+                example: "/sharing_group_blueprints/<remaining_url_requested>"
+
+    SharingGroupBlueprintDeletedResponse:
+      description: "Response when sharing group blueprint was deleted successfully"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              saved:
+                type: boolean
+                example: true
+              success:
+                type: boolean
+                example: true
+              name:
+                type: string
+                example: "SharingGroupBlueprint deleted."
+              message:
+                type: string
+                example: "SharingGroupBlueprint deleted."
+              url:
+                type: string
+                example: "/sharing_group_blueprints/<remaining_url_requested>"
+
+    SharingGroupBlueprintDetachedResponse:
+      description: "Response when sharing group was detached from a blueprint successfully"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              saved:
+                type: boolean
+                example: true
+              success:
+                type: boolean
+                example: true
+              name:
+                type: string
+                example: "Sharing group detached."
+              message:
+                type: string
+                example: "Sharing group detached."
+              url:
+                type: string
+                example: "/sharing_group_blueprints/<remaining_url_requested>"
+
+    SharingGroupBlueprintExecutedResponse:
+      description: "Response when sharing group blueprint was executed successfully"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              saved:
+                type: boolean
+                example: true
+              success:
+                type: boolean
+                example: true
+              name:
+                type: string
+                example: "Done, 1 sharing group blueprint(s) matched. Sharing group changes: Created: 0. Updated: 1. Failed to create: 0."
+              message:
+                type: string
+                example: "Done, 1 sharing group blueprint(s) matched. Sharing group changes: Created: 0. Updated: 1. Failed to create: 0."
+              url:
+                type: string
+                example: "/sharing_group_blueprints/<remaining_url_requested>"
+
+
     SharingGroupListResponse:
       description: "Get sharing groups response"
       content:
@@ -10194,6 +10864,71 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/UnauthorizedApiError"
+
+    AddCollectionResponse:
+      description: "A collection"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              Collection:
+                $ref: "#/components/schemas/CollectionAddEdit"
+
+    EditCollectionResponse:
+      description: "A collection"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              Collection:
+                $ref: "#/components/schemas/CollectionAddEdit"
+
+    ViewCollectionResponse:
+      description: "A collection"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              Collection:
+                $ref: "#/components/schemas/CollectionFull"
+
+    CollectionListResponse:
+      description: "A list of collections"
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              type: object
+              properties:
+                Collection:
+                  $ref: "#/components/schemas/CollectionFullNoElements"
+
+    DeleteCollectionResponse:
+      description: "Delete collection response"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              saved:
+                type: boolean
+              success:
+                type: boolean
+              name:
+                type: string
+                example: "Collection deleted."
+              message:
+                type: string
+                example: "Collection deleted."
+              url:
+                type: string
+                example: "/collections/delete/1"
+              id:
+                $ref: "#/components/schemas/ModelId"
 
   headers:
     X-Result-Count:

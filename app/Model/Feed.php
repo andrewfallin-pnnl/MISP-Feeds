@@ -92,7 +92,7 @@ class Feed extends AppModel
     }
     
     /*
-     *  Cleanup of empty belongsto relationships
+     *  Cleanup of empty belongsTo relationships
      */
     public function afterFind($results, $primary = false)
     {
@@ -251,7 +251,7 @@ class Feed extends AppModel
             }
             unset($manifest[$eventUuid]);
         }
-        // Rest events in manifest does't exists, they will be added
+        // Rest events in manifest don't exist, they will be added
         $result['add'] = array_keys($manifest);
         return $result;
     }
@@ -1068,6 +1068,7 @@ class Feed extends AppModel
             } else {
                 $event['Event']['distribution'] = $feed['Feed']['distribution'];
                 $event['Event']['sharing_group_id'] = $feed['Feed']['sharing_group_id'];
+                $event['Event']['locked'] = !empty($feed['Feed']['lock_events']) ? 1 : 0;
                 if ($feed['Feed']['sharing_group_id']) {
                     $sg = $this->SharingGroup->find('first', array(
                         'recursive' => -1,

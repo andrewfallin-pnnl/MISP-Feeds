@@ -30,6 +30,34 @@ class AttributeValidationTool
         'dom-hash' => 32,
     ];
 
+    const VULNERABILITY_REGEXES = [
+        'CVE-\d{4}-\d{4,}',
+        'GCVE-\d+-\d{4}-\d+',
+        'fkie_cve-\d{4}-\d{4,}',
+        'ghsa-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}',
+        'pysec-\d{4}-\d{2,5}',
+        'gsd-\d{4}-\d{4,5}',
+        'mal-\d{4}-\d+',
+        'wid-sec-w-\d{4}-\d{4}',
+        'ncsc-\d{4}-\d{4}',
+        'ssa-\d{6}',
+        'rh(ba|ea|sa)-\d{4}:\d{4,}',
+        'ics(ma|a)-\d{2}-\d{3}-\d{2}',
+        'va-\d{2}-\d{3}-\d{2}',
+        'cisco-sa(-[a-zA-Z0-9_]+)+',
+        'sca-\d{4}-\d{4,}',
+        'nn-\d{4}[:_]\d-\d{2}',
+        'oxas-adv-\d{4}-\d{4}',
+        'msrc_cve-\d{4}-\d{4,}',
+        'var-\d{6}-\d{4}',
+        'jvndb-\d{4}-\d{6}',
+        'ts-\d{4}-\d{4}',
+        '(open)?suse-su-\d{4}:\d{4,}-\d',
+        'cnvd-\d{4}-\d{5}',
+        'certfr-\d{4}-avi-\d{4}',
+        'certfr-\d{4}-ale-\d{3}'
+    ];
+
     /**
      * Do some last second modifications before the validation
      * @param string $type
@@ -75,6 +103,7 @@ class AttributeValidationTool
             case 'whois-registrant-email':
             case 'dom-hash':
             case 'onion-address':
+            case 'uuid':
                 return strtolower($value);
             case 'domain':
                 $value = strtolower($value);
@@ -127,6 +156,12 @@ class AttributeValidationTool
             case 'hex':
                 return strtoupper($value);
             case 'vulnerability':
+                $value = str_replace('–', '-', $value);
+                $source = explode('-', $value)[0];
+                if (in_array($source, ['cve', 'gcve'])) {
+                    return strtoupper($value);
+                }
+                return $value;
             case 'weakness':
                 $value = str_replace('–', '-', $value);
                 return strtoupper($value);
@@ -287,7 +322,7 @@ class AttributeValidationTool
                 }
                 return __('The input doesn\'t match the expected format (expected: 40 or more hexadecimal characters)');
             case 'http-method':
-                if (preg_match("#(OPTIONS|GET|HEAD|POST|PUT|DELETE|TRACE|CONNECT|PROPFIND|PROPPATCH|MKCOL|COPY|MOVE|LOCK|UNLOCK|VERSION-CONTROL|REPORT|CHECKOUT|CHECKIN|UNCHECKOUT|MKWORKSPACE|UPDATE|LABEL|MERGE|BASELINE-CONTROL|MKACTIVITY|ORDERPATCH|ACL|PATCH|SEARCH)#", $value)) {
+                if (preg_match("#^(OPTIONS|GET|HEAD|POST|PUT|DELETE|TRACE|CONNECT|PROPFIND|PROPPATCH|MKCOL|COPY|MOVE|LOCK|UNLOCK|VERSION-CONTROL|REPORT|CHECKOUT|CHECKIN|UNCHECKOUT|MKWORKSPACE|UPDATE|LABEL|MERGE|BASELINE-CONTROL|MKACTIVITY|ORDERPATCH|ACL|PATCH|SEARCH)$#", $value)) {
                     return true;
                 }
                 return __('Unknown HTTP method.');
@@ -384,9 +419,9 @@ class AttributeValidationTool
                 }
                 return __('Onion address has an invalid format.');
             case 'mac-address':
-                return preg_match('/^([a-fA-F0-9]{2}[:]?){6}$/', $value) === 1;
+                return preg_match('/^([a-f0-9]{2}:){5}[a-f0-9]{2}$/', $value) === 1;
             case 'mac-eui-64':
-                return preg_match('/^([a-fA-F0-9]{2}[:]?){8}$/', $value) === 1;
+                return preg_match('/^([a-f0-9]{2}:){3}ff:fe(:[a-f0-9]{2}){3}$/', $value) === 1;
             case 'hostname':
             case 'domain':
                 if (self::isDomainValid($value)) {
@@ -425,10 +460,10 @@ class AttributeValidationTool
                 }
                 return __('Email address has an invalid format. Please double check the value or select type "other".');
             case 'vulnerability':
-                if (preg_match("#^CVE-[0-9]{4}-[0-9]{4,}$#", $value)) {
+                if (preg_match("#^(" . implode("|", self::VULNERABILITY_REGEXES) . ")$#i", $value)) {
                     return true;
                 }
-                return __('Invalid format. Expected: CVE-xxxx-xxxx...');
+                return __('Invalid vulnerability ID format.');
             case 'weakness':
                 if (preg_match("#^CWE-[0-9]+$#", $value)) {
                     return true;
@@ -599,6 +634,8 @@ class AttributeValidationTool
                     return true;
                 }
                 return __('AS number have to be integer between 1 and 4294967295');
+            case 'uuid':
+                return preg_match('/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/', $value) === 1;
         }
         throw new InvalidArgumentException("Unknown attribute type $type.");
     }
@@ -661,7 +698,7 @@ class AttributeValidationTool
      */
     private static function isTelfhashValid($value)
     {
-        return strlen($value) == 70 || strlen($value) == 72;
+        return (strlen($value) == 70 || strlen($value) == 72) && ctype_xdigit($value);
     }
 
 

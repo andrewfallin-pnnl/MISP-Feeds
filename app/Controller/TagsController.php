@@ -103,18 +103,8 @@ class TagsController extends AppController
             $attributeCount = $this->Tag->AttributeTag->countForTags($tagList, $this->Auth->user());
             // TODO: this must be called before `tagsSparkline`!
             $eventCount = $this->Tag->EventTag->countForTags($tagList, $this->Auth->user());
-
-            if ($this->_isRest()) {
-                $csvForTags = []; // Sightings sparkline doesn't make sense for REST requests
-            } else {
-                $this->loadModel('Sighting');
-                $csvForTags = $this->Sighting->tagsSparkline($tagList, $this->Auth->user(), '0');
-            }
             foreach ($paginated as $k => $tag) {
                 $tagId = $tag['Tag']['id'];
-                if (isset($csvForTags[$tagId])) {
-                    $paginated[$k]['Tag']['csv'] = $csvForTags[$tagId];
-                }
                 $paginated[$k]['Tag']['count'] = isset($eventCount[$tagId]) ? (int)$eventCount[$tagId] : 0;
                 $paginated[$k]['Tag']['attribute_count'] = isset($attributeCount[$tagId]) ? (int)$attributeCount[$tagId] : 0;
             }
@@ -484,7 +474,7 @@ class TagsController extends AppController
             // This method removes banned and hidden tags
             $tagCollections = $this->TagCollection->fetchTagCollection($this->Auth->user());
             $tags = array();
-            $inludedTagListString = array();
+            $includedTagListString = array();
             $expanded = array();
             foreach ($tagCollections as &$tagCollection) {
                 $tags[$tagCollection['TagCollection']['id']] = $tagCollection['TagCollection'];
@@ -496,7 +486,7 @@ class TagsController extends AppController
                         $tagCollection['TagCollectionTag'] = array_values($tagCollection['TagCollectionTag']);
                     }
                     $tagList = implode(', ', $tagList);
-                    $inludedTagListString[$tagCollection['TagCollection']['id']] = $tagList;
+                    $includedTagListString[$tagCollection['TagCollection']['id']] = $tagList;
                     $expanded[$tagCollection['TagCollection']['id']] .= sprintf(' (%s)', $tagList);
                 }
             }
@@ -609,7 +599,7 @@ class TagsController extends AppController
                 )
             );
             if ($taxonomy_id === 'collections') {
-                $itemParam['template']['infoContextual'] = __('Includes: ') . $inludedTagListString[$tag['id']];
+                $itemParam['template']['infoContextual'] = __('Includes: ') . $includedTagListString[$tag['id']];
             }
             $items[] = $itemParam;
         }
@@ -924,7 +914,7 @@ class TagsController extends AppController
                 if ($objectType === 'Attribute') {
                     $this->MispAttribute->touch($object['Attribute']['id']);
                 } elseif ($objectType === 'Event') {
-                    $this->Event->unpublishEvent($object['Event']['id']);
+                    $this->Event->touch($object['Event']['id']);
                 }
             }
             return $this->RestResponse->saveSuccessResponse('Tags', 'removeTagFromObject', false, $this->response->type(), $message);

@@ -157,6 +157,16 @@ class AttachmentTool
             $filepath = $this->attachmentDir() . DS . $path;
             $file = new File($filepath);
             if (!is_file($file->path)) {
+                if (Configure::read('MISP.attachments_bucketed')) {
+                    // Try non-bucketed path for backward compatibility
+                    $nonBucketedPath = $this->getPath($shadow, $eventId, $attributeId, $pathSuffix, true);
+                    $filepath_unbucketed = $this->attachmentDir() . DS . $nonBucketedPath;
+                    $file = new File($filepath_unbucketed);
+                    if (!is_file($file->path)) {
+                        throw new NotFoundException("Neither file '$filepath_unbucketed' nor '$filepath' exists.");
+                    }
+                    return $file;
+                }
                 throw new NotFoundException("File '$filepath' does not exist.");
             }
         }
@@ -210,6 +220,44 @@ class AttachmentTool
         } else {
             $path = $this->attachmentDir() . DS . $path;
             FileAccessTool::writeToFile($path, $data, true);
+        }
+
+        return true;
+    }
+
+    /**
+     * @param int $eventId
+     * @param int $originalId
+     * @param int $newId
+     * @param string $pathSuffix
+     * @return bool
+     * @throws Exception
+     */
+    public function changeID($eventId, $originalId, $newId, $pathSuffix = '')
+    {
+        return $this->_changeID(false, $eventId, $originalId, $newId, $pathSuffix);
+    }
+
+    /**
+     * @param bool $shadow
+     * @param int $eventId
+     * @param int $originalId
+     * @param int $newId
+     * @param string $pathSuffix
+     * @return bool
+     * @throws Exception
+     */
+    protected function _changeID($shadow, $eventId, $originalId, $newId, $pathSuffix = '')
+    {
+        $path = $this->getPath($shadow, $eventId, $originalId, $pathSuffix);
+        $newPath = $this->getPath($shadow, $eventId, $newId, $pathSuffix);
+
+        if ($this->attachmentDirIsS3()) {
+            $s3 = $this->loadS3Client();
+            $s3->rename($path, $newPath);
+        } else {
+            $path = $this->attachmentDir() . DS . $path;
+            FileAccessTool::renameFile($path, $newId);
         }
 
         return true;
@@ -513,9 +561,12 @@ class AttachmentTool
      * @param string $pathSuffix
      * @return string
      */
-    private function getPath($shadow, $eventId, $attributeId, $pathSuffix)
+    private function getPath($shadow, $eventId, $attributeId, $pathSuffix, $forceNonBucketed = false)
     {
         $path = $shadow ? ('shadow' . DS) : '';
+        if (Configure::read('MISP.attachments_bucketed') && empty($forceNonBucketed) && !$this->attachmentDirIsS3()) {
+            return $path . 'bucket_' . (1000*(floor($eventId / 1000))) . DS . $eventId . DS . $attributeId . $pathSuffix;
+        }
         return $path . $eventId . DS . $attributeId . $pathSuffix;
     }
 

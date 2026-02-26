@@ -100,7 +100,9 @@ class ACLComponent extends Component
             'view' => ['perm_auth'],
         ],
         'benchmarks' => [
-            'index' => []
+            'index' => [],
+            'purgeSqlMetrics' => [],
+            'sqlMetrics' => []
         ],
         'bookmarks' => [
             'add' => ['*'],
@@ -147,6 +149,7 @@ class ACLComponent extends Component
             'index' => [],
             'add' => [],
             'edit' => [],
+            'executeRule' => [],
             'delete' => [],
             'view' => []
         ],
@@ -330,6 +333,7 @@ class ACLComponent extends Component
             'pushEventToKafka' => array('perm_publish_kafka'),
             'pushProposals' => array('perm_sync'),
             'queryEnrichment' => array('perm_add'),
+            'recorrelateEvent' => [],
             'recoverEvent' => array(),
             'removePivot' => array('*'),
             'removeTag' => array('perm_tagger'),
@@ -558,6 +562,7 @@ class ACLComponent extends Component
             'admin_merge' => array(),
             'fetchOrgsForSG' => array('perm_sharing_group'),
             'fetchSGOrgRow' => array('*'),
+            'getOrgLogo' => array('*'),
             'getUUIDs' => array('perm_sync'),
             'index' => ['organisation_index'],
             'view' => array('*'),
@@ -758,7 +763,12 @@ class ACLComponent extends Component
         ),
         'tasks' => array(
             'index' => array(),
-            'setTask' => array(),
+            'add' => array(),
+            'edit' => array(),
+            'delete' => array(),
+            'toggleEnabled' => array(),
+            'forceRun' => array(),
+            'viewLogs' => array(),
         ),
         'taxonomies' => array(
             'addTag' => array(),
@@ -843,6 +853,7 @@ class ACLComponent extends Component
             'email_otp' => array('*'),
             'forgot' => ['AND' => ['password_forgotten_enabled', 'password_change_enabled']],
             'heartbeat' => ['*'],
+            'ipUser' => [],
             'otp' => ['otp_enabled'],
             'hotp' => ['otp_enabled'],
             'totp_new' => ['otp_enabled'],
@@ -867,6 +878,7 @@ class ACLComponent extends Component
             'terms' => array('*'),
             'updateLoginTime' => array('*'),
             'updateToAdvancedAuthKeys' => array(),
+            'userIp' => [],
             'verifyCertificate' => array(),
             'verifyGPG' => array(),
             'view' => array('*'),
@@ -889,6 +901,7 @@ class ACLComponent extends Component
             'delete' => array('not_read_only_authkey'),
             'setHomePage' => array('not_read_only_authkey'),
             'eventIndexColumnToggle' => ['*'],
+            'toggleBetaUi' => ['*'],
         ),
         'warninglists' => array(
             'checkValue' => ['*'],

@@ -20,7 +20,11 @@ class Opinion extends AnalystData
         'comment',
     ];
 
-    public $validate = [];
+    public const SEARCHABLE_FIELDS = [
+        'comment',
+    ];
+
+    public $childValidate = [];
 
     public function beforeValidate($options = array())
     {

@@ -32,7 +32,7 @@ class AnalystDataController extends AppController
         $dropdownData['distributionLevels'] = $this->Event->distributionLevels;
         $this->set('initialDistribution', Configure::read('MISP.default_event_distribution'));
         $dropdownData['sgs'] = $this->Event->SharingGroup->fetchAllAuthorised($this->Auth->user(), 'name', 1);
-        $dropdownData['valid_targets'] = array_combine($this->AnalystData->valid_targets, $this->AnalystData->valid_targets);
+        $dropdownData['valid_targets'] = array_combine($this->AnalystData::valid_targets, $this->AnalystData::valid_targets);
         $this->set(compact('dropdownData'));
         $this->set('modelSelection', $this->modelSelection);
         $this->set('distributionLevels', $this->Event->distributionLevels);
@@ -225,6 +225,7 @@ class AnalystDataController extends AppController
                 return $analystData;
             }
         ]);
+
         if ($this->IndexFilter->isRest()) {
             return $this->restResponsePayload;
         }
@@ -240,11 +241,13 @@ class AnalystDataController extends AppController
     public function index($type = 'Note')
     {
         $this->__typeSelector($type);
-
+        if (isset($this->request->data[$type])) {
+            $this->request->data = $this->request->data[$type];
+        }
         $conditions = $this->AnalystData->buildConditions($this->Auth->user());
         $params = [
-            'filters' => ['uuid', 'target_object'],
-            'quickFilters' => ['name'],
+            'filters' => array_merge(['uuid', 'target_object'], $this->AnalystData::SEARCHABLE_FIELDS),
+            'quickFilters' => $this->AnalystData::SEARCHABLE_FIELDS,
             'conditions' => $conditions,
             'afterFind' => function(array $data) {
                 foreach ($data as $i => $analystData) {

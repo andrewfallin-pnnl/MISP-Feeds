@@ -17,7 +17,7 @@
                 endif;
             $date = time();
             $day = 86400;
-        ?>
+        ?> 
         <?php if (in_array('owner_org', $columns, true)): ?><th class="filter"><?= $this->Paginator->sort('Org.name', __('Owner org')) ?></th><?php endif; ?>
         <th><?= $this->Paginator->sort('id', __('ID'), ['direction' => 'desc']) ?></th>
         <?php if (in_array('clusters', $columns, true)): ?><th><?= __('Clusters') ?></th><?php endif; ?>
@@ -37,27 +37,46 @@
         <th class="actions"><?php echo __('Actions');?></th>
     </tr>
     <?php foreach ($events as $event): $eventId = (int)$event['Event']['id']; ?>
+    <?php $eventLinkId = Configure::read('MISP.use_uuids_in_urls') ? h($event['Event']['uuid']) : h($eventId); ?>
     <tr id="event_<?= $eventId ?>">
         <td style="width:10px">
             <input class="select" type="checkbox" data-id="<?= $eventId ?>" data-can-modify="<?= $this->Acl->canModifyEvent($event) ? 1 : 0 ?>">
         </td>
         <td class="dblclickElement" style="width:30px">
-            <a href="<?= "$baseurl/events/view/$eventId" ?>" title="<?= __('View') ?>" aria-label="<?= __('View') ?>">
+            <a href="<?= "$baseurl/events/view/$eventLinkId" ?>" title="<?= __('View') ?>" aria-label="<?= __('View') ?>">
                 <i class="fa <?= $event['Event']['published'] ? 'fa-check green' : 'fa-times grey' ?>"></i>
             </a>
         </td>
         <?php if (Configure::read('MISP.showorg') || $isAdmin): ?>
         <td class="short" ondblclick="document.location.href ='<?php echo $baseurl . "/events/index/searchorg:" . $event['Orgc']['id'];?>'">
-            <?= $this->OrgImg->getOrgLogo($event['Orgc'], 24) ?>
+            <a href="<?= $baseurl . '/organisations/view/' . h($event['Orgc']['id']) ?>" class="org-logo" title="<?= __('View organisation %s', h($event['Orgc']['name'])) ?>" aria-label="<?= __('View organisation %s', h($event['Orgc']['name'])) ?>">
+                <img 
+                    src="<?= $baseurl ?>/organisations/getOrgLogo/<?= h($event['Orgc']['id']) ?>.json"
+                    title="<?= h($event['Orgc']['name']) ?>"
+                    alt="<?= h($event['Orgc']['name']) ?>"
+                    width=24
+                    height=24
+                    onError="this.onerror=null; this.replaceWith(document.createTextNode(this.alt));"
+                >
+            </a>
         </td>
         <?php endif;?>
         <?php if (in_array('owner_org', $columns, true) || (Configure::read('MISP.showorgalternate') && Configure::read('MISP.showorg'))): ?>
         <td class="short" ondblclick="document.location.href ='<?php echo $baseurl . "/events/index/searchorg:" . $event['Org']['id'];?>'">
-            <?= $this->OrgImg->getOrgLogo($event['Org'], 24) ?>
+            <a href="<?= $baseurl . '/organisations/view/' . h($event['Org']['id']) ?>" class="org-logo" title="<?= __('View organisation %s', h($event['Org']['name'])) ?>" aria-label="<?= __('View organisation %s', h($event['Org']['name'])) ?>">
+                <img 
+                    src="<?= $baseurl ?>/organisations/getOrgLogo/<?= h($event['Org']['id']) ?>.json"
+                    title="<?= h($event['Org']['name']) ?>"
+                    alt="<?= h($event['Org']['name']) ?>"
+                    width=24
+                    height=24
+                    onError="this.onerror=null; this.replaceWith(document.createTextNode(this.alt));"
+                >
+            </a>
         </td>
         <?php endif; ?>
         <td class="short">
-            <span><a href="<?= $baseurl."/events/view/".$eventId ?>" class="dblclickActionElement threat-level-<?= strtolower(h($event['ThreatLevel']['name'])) ?>" title="<?= h($event['Event']['info']) ?>"><?= $eventId ?></a> <?= !empty($event['Event']['protected']) ? sprintf('<i class="fas fa-lock" title="%s"></i>', __('Protected event')) : ''?></span>
+            <span><a href="<?= $baseurl."/events/view/".$eventLinkId ?>" class="dblclickActionElement threat-level-<?= strtolower(h($event['ThreatLevel']['name'])) ?>" title="<?= h($event['Event']['info']) ?>"><?= $eventId ?></a> <?= !empty($event['Event']['protected']) ? sprintf('<i class="fas fa-lock" title="%s"></i>', __('Protected event')) : ''?></span>
         </td>
         <?php if (in_array('clusters', $columns, true)): ?>
         <td class="short">
@@ -107,7 +126,7 @@
         <?php if (in_array('correlations', $columns, true)): ?>
         <td class="bold" style="width:30px">
             <?php if (!empty($event['Event']['correlation_count'])): ?>
-                <a href="<?= "$baseurl/events/view/$eventId/correlation:1" ?>" title="<?= __n('%s correlation', '%s correlations', $event['Event']['correlation_count'], $event['Event']['correlation_count']), '. ' . __('Show filtered event with correlation only.');?>">
+                <a href="<?= "$baseurl/events/view/$eventLinkId/correlation:1" ?>" title="<?= __n('%s correlation', '%s correlations', $event['Event']['correlation_count'], $event['Event']['correlation_count']), '. ' . __('Show filtered event with correlation only.');?>">
                     <?= intval($event['Event']['correlation_count']); ?>
                 </a>
             <?php endif; ?>
@@ -121,7 +140,7 @@
         <?php if (in_array('sightings', $columns, true)): ?>
         <td class="bold" style="width:30px">
             <?php if (!empty($event['Event']['sightings_count'])): ?>
-                <a href="<?= "$baseurl/events/view/$eventId/sighting:1" ?>" title="<?= __n("1 sighting. Show filtered event with sighting only.", "%s sightings. Show filtered event with sightings only.", $event['Event']['sightings_count'], intval($event['Event']['sightings_count'])) ?>">
+                <a href="<?= "$baseurl/events/view/$eventLinkId/sighting:1" ?>" title="<?= __n("1 sighting. Show filtered event with sighting only.", "%s sightings. Show filtered event with sightings only.", $event['Event']['sightings_count'], intval($event['Event']['sightings_count'])) ?>">
                     <?= intval($event['Event']['sightings_count']) ?>
                 </a>
             <?php endif; ?>
@@ -165,8 +184,40 @@
             <?= $this->Time->time($event['Event']['publish_timestamp']) ?>
         </td>
         <?php endif; ?>
-        <td class="dblclickElement">
+        <?php
+            $extends_uuid = $event['Event']['extends_uuid'] ?? null;
+            $extendedEventsInfoByUuid = array_column($extendedEvents, 'info', 'uuid');
+            $extendedEventsIdByUuid = array_column($extendedEvents, 'id', 'uuid');
+            $extends_info = $extendedEventsInfoByUuid[$extends_uuid] ?? null;
+            $extends_id = $extendedEventsIdByUuid[$extends_uuid] ?? null;
+        ?>
+
+        <td class="dblclickElement" style="min-width: 20vi; white-space: normal;">
             <?= nl2br(h($event['Event']['info']), false) ?>
+
+            <?php if ($extends_info): ?>
+                <?php if (in_array('is_extension', $columns, true)): ?>
+                    <div style="padding-left: 1em;">
+                        <span class="apply_css_arrow">
+                            <p style="display: inline;">
+                                Extends 
+                                <a href="<?= h($baseurl) ?>/events/view/<?= h($extends_id) ?>" 
+                                title="<?= __('See extended event') ?>" 
+                                aria-label="<?= __('See extended event') ?>">
+                                    <?= h($extends_id)?>
+                                </a>
+                                : <?= h($extends_info) ?>
+                            </p>
+                        </span>
+                    </div>
+                <?php else: ?>
+                    <a href="<?= h($baseurl) ?>/events/view/<?= h($extends_id) ?>" 
+                    title="<?= __('Extends event %s', h($extends_id)) ?>"
+                    aria-label="<?= __('Extends event %s', h($extends_id)) ?>">
+                        <i class="fas fa-external-link-square-alt"></i>
+                    </a>
+                <?php endif; ?>
+            <?php endif; ?>
         </td>
         <td class="short dblclickElement<?php if ($event['Event']['distribution'] == 0) echo ' privateRedText';?>" title="<?= $event['Event']['distribution'] != 3 ? $distributionLevels[$event['Event']['distribution']] : __('All');?>">
             <?php if ($event['Event']['distribution'] == 4):?>
@@ -189,17 +240,17 @@
         <td class="short action-links">
             <?php
                 if (0 == $event['Event']['published'] && $this->Acl->canPublishEvent($event)) {
-                    echo sprintf('<a class="useCursorPointer fa fa-upload" title="%s" aria-label="%s" onclick="event.preventDefault();publishPopup(%s)"></a>', __('Publish Event'), __('Publish Event'), $eventId);
+                    echo sprintf('<a class="useCursorPointer fa fa-upload" title="%s" aria-label="%s" onclick="event.preventDefault();publishPopup(%s)"></a>', __('Publish Event'), __('Publish Event'), $eventLinkId);
                 }
 
                 if ($this->Acl->canModifyEvent($event)):
             ?>
-                    <a href="<?php echo $baseurl."/events/edit/".$eventId ?>" title="<?php echo __('Edit');?>" aria-label="<?php echo __('Edit');?>"><i class="black fa fa-edit"></i></a>
+                    <a href="<?php echo $baseurl."/events/edit/".$eventLinkId ?>" title="<?php echo __('Edit');?>" aria-label="<?php echo __('Edit');?>"><i class="black fa fa-edit"></i></a>
             <?php
-                    echo sprintf('<a class="useCursorPointer fa fa-trash" title="%s" aria-label="%s" onclick="event.preventDefault();deleteEventPopup(%s)"></a>', __('Delete'), __('Delete'), $eventId);
+                    echo sprintf('<a class="useCursorPointer fa fa-trash" title="%s" aria-label="%s" onclick="event.preventDefault();deleteEventPopup(%s)"></a>', __('Delete'), __('Delete'), $eventLinkId);
                 endif;
             ?>
-            <a href="<?php echo $baseurl."/events/view/".$eventId ?>" title="<?php echo __('View');?>" aria-label="<?php echo __('View');?>"><i class="fa black fa-eye"></i></a>
+            <a href="<?php echo $baseurl."/events/view/".$eventLinkId ?>" title="<?php echo __('View');?>" aria-label="<?php echo __('View');?>"><i class="fa black fa-eye"></i></a>
         </td>
     </tr>
     <?php endforeach; ?>
@@ -212,7 +263,7 @@
         }).click(function(e) {
             if ($(this).is(':checked')) {
                 if (e.shiftKey) {
-                    selectAllInbetween(lastSelected, this);
+                    selectAllInBetween(lastSelected, this);
                 }
                 lastSelected = this;
             }

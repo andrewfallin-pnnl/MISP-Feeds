@@ -396,14 +396,7 @@ class SharingGroup extends AppModel
             return false;
         }
         if ($user['Role']['perm_sync']) {
-            $sg = $this->find('first', array(
-                'conditions' => array(
-                    'id' => $id,
-                    'sync_user_id' => $user['id'],
-                ),
-                'recursive' => -1,
-            ));
-            if (!empty($sg)) {
+            if ($this->checkIfAuthorised($user, $id)) {
                 return true;
             }
         }
@@ -472,7 +465,7 @@ class SharingGroup extends AppModel
     /**
      * Returns true if the SG exists and the user is allowed to see it, from the parent element
      * @param array $user
-     * @param array $element Parent element containg the SG data
+     * @param array $element Parent element containing the SG data
      * @return bool|str
      * @throws MethodNotAllowedException
      */
@@ -486,7 +479,7 @@ class SharingGroup extends AppModel
                     return __('Invalid Sharing Group or not authorised.');
                 } else {
                     if (
-                        !$this->checkIfExists($object['SharingGroup']['uuid']) ||
+                        $this->checkIfExists($object['SharingGroup']['uuid']) &&
                         !$this->checkIfAuthorised($user, $object['SharingGroup']['uuid'])
                     ) {
                         return __('Invalid Sharing Group or not authorised (Sync user is not contained in the Sharing group).');

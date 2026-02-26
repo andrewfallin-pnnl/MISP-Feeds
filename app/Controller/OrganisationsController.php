@@ -18,7 +18,7 @@ class OrganisationsController extends AppController
 
     public $paginate = array(
             'limit' => 60,
-            'maxLimit' => 9999, // LATER we will bump here on a problem once we have more than 9999 events <- no we won't, this is the max a user van view/page.
+            'maxLimit' => 9999, // LATER we will bump here on a problem once we have more than 9999 events <- no we won't, this is the max a user can view/page.
             'order' => 'LOWER(Organisation.name)'
             //'order' => array(
             //      'Organisation.name' => 'ASC'
@@ -519,5 +519,33 @@ class OrganisationsController extends AppController
         }
 
         return false;
+    }
+
+    public function getOrgLogo($id) {
+        $org = $this->Organisation->find('first', array(
+            'conditions' => array('Organisation.id' => intval($id)),
+            'recursive' => -1
+        ));
+        if (empty($org)) {
+            throw new NotFoundException(__('Invalid organisation'));
+        }
+        $path = APP . 'files/img/orgs/';
+        $image = null;
+        foreach (['id', 'name', 'uuid'] as $field) {
+            foreach (['png', 'svg'] as $extensions) {
+                if (file_exists($path . $org['Organisation'][$field] . '.' . $extensions)) {
+                    $this->response->file($path . $org['Organisation'][$field] . '.' . $extensions, ['download' => false, 'name' => $org['Organisation']['id'] . '.' . $extensions]);
+                    return $this->response;
+                }
+            }
+        }
+        if ($image) {
+            $filePath = $path . $image;
+            $this->response->file($filePath, array('download' => false, 'name' => $image));
+            return $this->response;
+        } else {
+            throw new NotFoundException(__('Organisation logo not found'));
+        }
+
     }
 }

@@ -15,11 +15,30 @@ class Relationship extends AnalystData
     public $current_type = 'Relationship';
     public $current_type_id = 2;
 
-    protected $EDITABLE_FIELDS = [
+    public const EDITABLE_FIELDS = [
         'relationship_type',
     ];
 
-    public $validate = [];
+    public const SEARCHABLE_FIELDS = [
+        'relationship_type',
+    ];
+
+    public $childValidate = [
+        'related_object_uuid' => [
+            'uuid' => [
+                'rule' => 'uuid',
+                'message' => 'Please provide a valid RFC 4122 UUID'
+            ],
+        ],
+        'related_object_type' => [
+            'validTarget' => [
+                'rule' => ['inList', AnalystData::valid_targets],
+                'message' => 'Invalid target type.',
+                'allowEmpty' => false,
+                'required' => true,
+            ]
+        ],
+    ];
 
     /** @var object|null */
     protected $Event;
@@ -44,6 +63,9 @@ class Relationship extends AnalystData
         // Prevent self-referencing relationships
         if ($this->data[$this->current_type]['object_uuid'] == $this->data[$this->current_type]['related_object_uuid']) {
             return false;
+        }
+        if (!empty($this->data[$this->current_type]['related_object_uuid'])) {
+            $this->data[$this->current_type]['related_object_uuid'] = trim($this->data[$this->current_type]['related_object_uuid']);
         }
         return true;
 
@@ -77,6 +99,7 @@ class Relationship extends AnalystData
             $backup = $this->Event->includeAnalystData;
             $this->Event->includeAnalystData = false;
             $data = $this->Event->fetchSimpleEvent($user, $uuid, $params);
+            $data = $data ?? [];
             $this->Event->includeAnalystData = $backup;
         } else if ($type == 'Attribute') {
             $this->Attribute = ClassRegistry::init('MispAttribute');

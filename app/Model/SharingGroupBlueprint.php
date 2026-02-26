@@ -211,7 +211,7 @@ class SharingGroupBlueprint extends AppModel
             foreach ($rules as $key => $value) {
                 if (in_array($key, $this->operands)) {
                     if ($operand === 'NOT') {
-                        throw new MethodNotAllwedException(__('Boolean branches within a NOT branch are not supported.'));
+                        throw new MethodNotAllowedException(__('Boolean branches within a NOT branch are not supported.'));
                     }
                     $temp = $this->__recursiveEvaluate($user, $rules[$key], $key);
                 } else {
@@ -312,5 +312,20 @@ class SharingGroupBlueprint extends AppModel
             ];
         }
         return [];
+    }
+
+    public function validateBlueprintPermissions($sg, $user)
+    {
+        if ($user['Role']['perm_site_admin']) {
+            // site admins can do anything
+            return true;
+        }
+        // creating a new sharing group, always allowed
+        if (!empty($sg['sharing_group_id'])) {
+            if (!$this->SharingGroup->checkIfAuthorisedExtend($user, $sg['sharing_group_id'])) {
+                return false;
+            }
+        }
+        return true;
     }
 }
