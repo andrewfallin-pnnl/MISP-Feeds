@@ -6612,7 +6612,7 @@ class Event extends AppModel
      * @return array
      * @throws Exception
      */
-    private function convertStixToMisp($stixVersion, $file, $distribution, $sharingGroupId, $forceContextualData, $galaxiesAsTags, $clusterDistribution, $clusterSharingGroupId, $orgUuid, $debug)
+    public function convertStixToMisp($stixVersion, $file, $distribution, $sharingGroupId, $forceContextualData, $galaxiesAsTags, $clusterDistribution, $clusterSharingGroupId, $orgUuid, $debug)
     {
         $scriptDir = APP . 'files' . DS . 'scripts';
         if ($stixVersion === '2' || $stixVersion === '2.0' || $stixVersion === '2.1') {

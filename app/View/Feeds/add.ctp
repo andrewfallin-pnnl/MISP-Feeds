@@ -130,6 +130,15 @@ echo $this->element('genericElements/Form/genericForm', [
                 'class' => 'form-control span6'
             ],
             [
+                'field' => 'Feed.settings.stix.stix_version',
+                'label' => __('STIX Version'),
+                'options' => ['1' => 'STIX 1.x (XML)', '2' => 'STIX 2.x (JSON)'],
+                'type' => 'dropdown',
+                'div' => ['id' => 'settingsStixVersionDiv', 'style' => 'display:none', 'class' => 'optionalField'],
+                'class' => 'form-control span6',
+                'value' => isset($entity['Feed']['settings']['stix']['stix_version']) ? $entity['Feed']['settings']['stix']['stix_version'] : '2'
+            ],
+            [
                 'field' => 'publish',
                 'label' => __('Auto Publish'),
                 'title' => __('Publish events directly after pulling the feed - if you would like to review the event before publishing uncheck this'),

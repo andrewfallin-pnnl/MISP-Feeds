@@ -246,6 +246,11 @@ class FeedsController extends AppController
                         $feed['Feed']['orgc_id'] = '0';
                     }
                 }
+                if (!empty($feed['Feed']['source_format']) && ($feed['Feed']['source_format'] == 'stix')) {
+                    if (empty($feed['Feed']['settings']['stix']['stix_version'])) {
+                        $feed['Feed']['settings']['stix']['stix_version'] = '2';
+                    }
+                }
                 if ($feed['Feed']['source_format'] == 'freetext') {
                     if ($feed['Feed']['fixed_event'] == 1) {
                         if (!empty($feed['Feed']['target_event']) && is_numeric($feed['Feed']['target_event'])) {
@@ -592,6 +597,14 @@ class FeedsController extends AppController
                     $message .= ' Updated ' . count($result['edit']) . ' event(s).';
                 }
             }
+            if ($this->Feed->data['Feed']['source_format'] == 'stix') {
+                if (isset($result['add'])) {
+                    $message .= ' Downloaded ' . count($result['add']) . ' new event(s).';
+                }
+                if (isset($result['edit'])) {
+                    $message .= ' Updated ' . count($result['edit']) . ' event(s).';
+                }
+            }
         }
         if ($this->_isRest()) {
             return $this->RestResponse->viewData(array('result' => $message), $this->response->type());
@@ -726,6 +739,8 @@ class FeedsController extends AppController
             return $this->__previewIndex($feed, $params);
         } elseif (in_array($feed['Feed']['source_format'], ['freetext', 'csv'], true)) {
             return $this->__previewFreetext($feed);
+        } elseif ($feed['Feed']['source_format'] === 'stix') {
+            return $this->__previewStix($feed);
         } else {
             throw new Exception("Invalid feed format `{$feed['Feed']['source_format']}`.");
         }
@@ -841,6 +856,74 @@ class FeedsController extends AppController
         $this->params->params['paging'] = array($this->modelClass => $params);
         $resultArray = $this->Feed->getFreetextFeedCorrelations($resultArray, $feed['Feed']['id']);
         // remove all duplicates
+        $correlatingEvents = array();
+        foreach ($resultArray as $k => $v) {
+            if (!empty($resultArray[$k]['correlations'])) {
+                foreach ($resultArray[$k]['correlations'] as $correlatingEvent) {
+                    if (!in_array($correlatingEvent, $correlatingEvents)) {
+                        $correlatingEvents[] = $correlatingEvent;
+                    }
+                }
+            }
+        }
+        $resultArray = array_values($resultArray);
+        $this->loadModel('MispAttribute');
+        $correlatingEventInfos = $this->MispAttribute->Event->find('list', array(
+            'fields' => array('Event.id', 'Event.info'),
+            'conditions' => array('Event.id' => $correlatingEvents)
+        ));
+        $this->set('correlatingEventInfos', $correlatingEventInfos);
+        $this->set('distributionLevels', $this->MispAttribute->distributionLevels);
+        $this->set('feed', $feed);
+        if ($this->_isRest()) {
+            return $this->RestResponse->viewData($resultArray, $this->response->type());
+        }
+        $this->set('attributes', $resultArray);
+        $this->render('freetext_index');
+    }
+
+    /**
+     * Preview a STIX feed by downloading and converting its content to MISP format.
+     * Uses the existing Event::convertStixToMisp() infrastructure.
+     *
+     * @param array $feed
+     * @return mixed
+     */
+    private function __previewStix(array $feed)
+    {
+        if (isset($this->passedArgs['page'])) {
+            $currentPage = $this->passedArgs['page'];
+        } else {
+            $currentPage = 1;
+        }
+
+        App::uses('SyncTool', 'Tools');
+        $syncTool = new SyncTool();
+        $HttpSocket = $syncTool->setupHttpSocketFeed();
+
+        try {
+            $resultArray = $this->Feed->getStixFeed($feed, $HttpSocket);
+        } catch (Exception $e) {
+            $this->Flash->error("Could not fetch STIX feed: {$e->getMessage()}");
+            $this->redirect(array('controller' => 'feeds', 'action' => 'index'));
+        }
+
+        App::uses('CustomPaginationTool', 'Tools');
+        $customPagination = new CustomPaginationTool();
+        $params = $customPagination->createPaginationRules($resultArray, array('page' => $currentPage, 'limit' => 60), 'Feed', $sort = false);
+        if (!empty($currentPage) && $currentPage !== 'all') {
+            $start = ($currentPage - 1) * 60;
+            if ($start > count($resultArray)) {
+                return false;
+            }
+            $resultArray = array_slice($resultArray, $start, 60);
+        }
+
+        $this->params->params['paging'] = array($this->modelClass => $params);
+
+        // Check correlations against existing data
+        $resultArray = $this->Feed->getFreetextFeedCorrelations($resultArray, $feed['Feed']['id']);
+
         $correlatingEvents = array();
         foreach ($resultArray as $k => $v) {
             if (!empty($resultArray[$k]['correlations'])) {

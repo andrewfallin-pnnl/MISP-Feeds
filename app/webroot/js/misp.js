@@ -4463,6 +4463,12 @@ function feedFormUpdate() {
             $('#settingsCsvDelimiterDiv').show();
             $('#settingsCommonExcluderegexDiv').show();
             break;
+        case 'stix':
+            $('#OrgcDiv').show();
+            $('#OverrideIdsDiv').show();
+            $('#PublishDiv').show();
+            $('#settingsStixVersionDiv').show();
+            break;
     }
     if ($('#FeedInputSource').val() == 'local') {
         $('#DeleteLocalFileDiv').show();
