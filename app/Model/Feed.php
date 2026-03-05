@@ -149,6 +149,10 @@ class Feed extends AppModel
                 if (!is_dir($path)) {
                     return 'For MISP type local feeds, please specify the containing directory.';
                 }
+            } elseif ($this->data['Feed']['source_format'] == 'stix') {
+                if (!file_exists($path)) {
+                    return 'Invalid path or file/directory not found. For STIX feeds you can specify either a file or a directory containing STIX files.';
+                }
             } else {
                 if (!file_exists($path)) {
                     return 'Invalid path or file not found. Make sure that the path points to an existing file that is readable and watch out for typos.';
@@ -1349,6 +1353,66 @@ class Feed extends AppModel
      * @return bool
      * @throws Exception
      */
+    /**
+     * Resolve a STIX feed URL/path to the actual file to process.
+     * If the path points to a local directory, scan for STIX files and return
+     * the path to the most recently modified one.
+     *
+     * @param array $feed Feed data array
+     * @return string The resolved feed URL or file path
+     * @throws Exception If directory contains no STIX files
+     */
+    private function __resolveStixFeedPath(array $feed)
+    {
+        $feedUrl = $feed['Feed']['url'];
+
+        // Only apply directory scanning for local feeds
+        if (!$this->isFeedLocal($feed)) {
+            return $feedUrl;
+        }
+
+        // Normalize the path (remove protocol prefix like feedGetUri does)
+        $localPath = mb_ereg_replace("/\:\/\//", '', $feedUrl);
+
+        // If it's a file, use it directly
+        if (is_file($localPath)) {
+            return $feedUrl;
+        }
+
+        // If it's a directory, find the most recent STIX file
+        if (is_dir($localPath)) {
+            $stixExtensions = ['json', 'xml', 'stix', 'stix2', 'stix1'];
+            $newestFile = null;
+            $newestMtime = 0;
+
+            $dirIterator = new DirectoryIterator($localPath);
+            foreach ($dirIterator as $fileInfo) {
+                if ($fileInfo->isDot() || !$fileInfo->isFile()) {
+                    continue;
+                }
+                $ext = strtolower($fileInfo->getExtension());
+                if (!in_array($ext, $stixExtensions, true)) {
+                    continue;
+                }
+                $mtime = $fileInfo->getMTime();
+                if ($mtime > $newestMtime) {
+                    $newestMtime = $mtime;
+                    $newestFile = $fileInfo->getPathname();
+                }
+            }
+
+            if ($newestFile === null) {
+                throw new Exception("STIX feed directory '$localPath' contains no STIX files (expected extensions: " . implode(', ', $stixExtensions) . ")");
+            }
+
+            $this->log("STIX feed: resolved directory '$localPath' to most recent file '$newestFile'", LOG_INFO);
+            return $newestFile;
+        }
+
+        // Not a file and not a directory — let feedGetUri handle the error
+        return $feedUrl;
+    }
+
     private function downloadStixFeed(array $feed, HttpSocket $HttpSocket = null, array $user, $jobId = false)
     {
         $feedId = $feed['Feed']['id'];
@@ -1359,8 +1423,8 @@ class Feed extends AppModel
             $stixVersion = $feed['Feed']['settings']['stix_version'];
         }
 
-        // Fetch the STIX content
-        $feedUrl = $feed['Feed']['url'];
+        // Resolve the feed URL (handles directory → most recent file)
+        $feedUrl = $this->__resolveStixFeedPath($feed);
         $data = $this->feedGetUri($feed, $feedUrl, $HttpSocket);
 
         if (empty($data)) {
@@ -1825,7 +1889,7 @@ class Feed extends AppModel
         $this->jobProgress($jobId, __('Feed %s: Fetching STIX data for caching.', $feedId));
 
         try {
-            $feedUrl = $feed['Feed']['url'];
+            $feedUrl = $this->__resolveStixFeedPath($feed);
             $data = $this->feedGetUri($feed, $feedUrl, $HttpSocket);
         } catch (Exception $e) {
             $this->logException("Could not get STIX feed $feedId for caching", $e);
