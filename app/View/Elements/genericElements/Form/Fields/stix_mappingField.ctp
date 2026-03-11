@@ -1,37 +1,37 @@
 <?php
-// Hidden field to store the serialized JSON mapping data
-echo $this->Form->hidden('Feed.settings.stix_mapping', [
-    'id' => 'FeedSettingsStixMapping',
-    'value' => '',
-]);
-
-$attributeFields = [
-    'category' => __('Category'),
-    'type' => __('Type'),
-    'value1' => __('Value1'),
-    'value2' => __('Value2'),
-    'to_ids' => __('To IDS'),
-    'comment' => __('Comment'),
-    'first_seen' => __('First Seen'),
-    'last_seen' => __('Last Seen'),
-];
-
-// Retrieve existing mappings for edit mode
-$existingMappings = [];
-if (isset($this->request->data['Feed']['settings']['stix_mapping'])) {
-    $existingMappings = $this->request->data['Feed']['settings']['stix_mapping'];
+// Build the wrapper div attributes from params
+$divAttrs = '';
+if (!empty($params['div'])) {
+    if (is_array($params['div'])) {
+        foreach ($params['div'] as $attrName => $attrVal) {
+            $divAttrs .= ' ' . h($attrName) . '="' . h($attrVal) . '"';
+        }
+    }
 }
 ?>
-<div id="stixMappingContainer">
+<div<?php echo $divAttrs; ?>>
     <label><?php echo __('STIX Custom Field Mapping'); ?></label>
+    <?php
+    // Hidden field to store the serialized JSON mapping data
+    echo $this->Form->hidden('Feed.settings.stix_mapping', [
+        'id' => 'FeedSettingsStixMapping',
+        'value' => '',
+    ]);
+
+    // Retrieve existing mappings for edit mode
+    $existingMappings = [];
+    if (isset($this->request->data['Feed']['settings']['stix_mapping'])) {
+        $existingMappings = $this->request->data['Feed']['settings']['stix_mapping'];
+    }
+    ?>
     <p class="clear" style="font-style: italic; color: #888; margin-bottom: 5px;">
-        <?php echo __('Map flat STIX field keys to MISP Attribute fields. Values from the STIX source will be placed into the selected Attribute field during conversion.'); ?>
+        <?php echo __('Override MISP event fields with static values for all events created by this STIX feed.'); ?>
     </p>
     <table id="stixMappingTable" class="table table-condensed" style="width: auto;">
         <thead>
             <tr>
-                <th><?php echo __('STIX Field Key'); ?></th>
-                <th><?php echo __('MISP Attribute Field'); ?></th>
+                <th><?php echo __('MISP Event Field'); ?></th>
+                <th><?php echo __('Value'); ?></th>
                 <th></th>
             </tr>
         </thead>
@@ -41,80 +41,68 @@ if (isset($this->request->data['Feed']['settings']['stix_mapping'])) {
     <span id="addStixMappingRow" class="btn btn-small btn-inverse" style="margin-bottom: 10px;">
         <i class="fas fa-plus"></i> <?php echo __('Add Mapping'); ?>
     </span>
-</div>
+    </div>
 
-<script type="text/javascript">
-    (function() {
-        var attributeFieldOptions = <?php echo json_encode($attributeFields); ?>;
-        var existingMappings = <?php echo json_encode($existingMappings); ?>;
+    <script type="text/javascript">
+        (function() {
+            var existingMappings = <?php echo json_encode($existingMappings); ?>;
 
-        function buildOptionHtml(selectedValue) {
-            var html = '<option value=""><?php echo __("-- Select --"); ?></option>';
-            for (var key in attributeFieldOptions) {
-                if (attributeFieldOptions.hasOwnProperty(key)) {
-                    var sel = (key === selectedValue) ? ' selected="selected"' : '';
-                    html += '<option value="' + key + '"' + sel + '>' + attributeFieldOptions[key] + '</option>';
-                }
-            }
-            return html;
-        }
-
-        function addStixMappingRow(stixKey, attributeField) {
-            stixKey = stixKey || '';
-            attributeField = attributeField || '';
-            var row = '<tr class="stix-mapping-row">' +
-                '<td><input type="text" class="form-control stix-mapping-key" value="' + escapeHtml(stixKey) + '" placeholder="<?php echo __("e.g. x_custom_field"); ?>" style="width: 250px;" /></td>' +
-                '<td><select class="form-control stix-mapping-field" style="width: 200px;">' + buildOptionHtml(attributeField) + '</select></td>' +
-                '<td><span class="btn btn-small btn-danger remove-stix-mapping"><i class="fas fa-trash"></i></span></td>' +
-                '</tr>';
-            $('#stixMappingRows').append(row);
-            serializeStixMappings();
-        }
-
-        function escapeHtml(str) {
-            var div = document.createElement('div');
-            div.appendChild(document.createTextNode(str));
-            return div.innerHTML;
-        }
-
-        function serializeStixMappings() {
-            var mappings = [];
-            $('#stixMappingRows .stix-mapping-row').each(function() {
-                var stixKey = $(this).find('.stix-mapping-key').val().trim();
-                var attrField = $(this).find('.stix-mapping-field').val();
-                if (stixKey !== '' && attrField !== '') {
-                    mappings.push({
-                        'stix_key': stixKey,
-                        'attribute_field': attrField
-                    });
-                }
-            });
-            $('#FeedSettingsStixMapping').val(JSON.stringify(mappings));
-        }
-
-        $(document).ready(function() {
-            // Load existing mappings
-            if (existingMappings && Array.isArray(existingMappings) && existingMappings.length > 0) {
-                for (var i = 0; i < existingMappings.length; i++) {
-                    addStixMappingRow(existingMappings[i].stix_key || '', existingMappings[i].attribute_field || '');
-                }
+            function escapeHtml(str) {
+                var div = document.createElement('div');
+                div.appendChild(document.createTextNode(str));
+                return div.innerHTML;
             }
 
-            // Add row button
-            $('#addStixMappingRow').on('click', function() {
-                addStixMappingRow('', '');
-            });
-
-            // Remove row button (delegated)
-            $('#stixMappingRows').on('click', '.remove-stix-mapping', function() {
-                $(this).closest('tr').remove();
+            function addStixMappingRow(mispField, value) {
+                mispField = mispField || '';
+                value = value || '';
+                var row = '<tr class="stix-mapping-row">' +
+                    '<td><input type="text" class="form-control stix-mapping-misp-field" value="' + escapeHtml(mispField) + '" placeholder="<?php echo __("e.g. info, extends_uuid"); ?>" style="width: 250px;" /></td>' +
+                    '<td><input type="text" class="form-control stix-mapping-value" value="' + escapeHtml(value) + '" placeholder="<?php echo __("Static value to set"); ?>" style="width: 250px;" /></td>' +
+                    '<td><span class="btn btn-small btn-danger remove-stix-mapping"><i class="fas fa-trash"></i></span></td>' +
+                    '</tr>';
+                $('#stixMappingRows').append(row);
                 serializeStixMappings();
-            });
+            }
 
-            // Serialize on any input change
-            $('#stixMappingRows').on('change keyup', '.stix-mapping-key, .stix-mapping-field', function() {
-                serializeStixMappings();
+            function serializeStixMappings() {
+                var mappings = [];
+                $('#stixMappingRows .stix-mapping-row').each(function() {
+                    var mispField = $(this).find('.stix-mapping-misp-field').val().trim();
+                    var value = $(this).find('.stix-mapping-value').val().trim();
+                    if (mispField !== '') {
+                        mappings.push({
+                            'misp_field': mispField,
+                            'value': value
+                        });
+                    }
+                });
+                $('#FeedSettingsStixMapping').val(JSON.stringify(mappings));
+            }
+
+            $(document).ready(function() {
+                // Load existing mappings
+                if (existingMappings && Array.isArray(existingMappings) && existingMappings.length > 0) {
+                    for (var i = 0; i < existingMappings.length; i++) {
+                        addStixMappingRow(existingMappings[i].misp_field || '', existingMappings[i].value || '');
+                    }
+                }
+
+                // Add row button
+                $('#addStixMappingRow').on('click', function() {
+                    addStixMappingRow('', '');
+                });
+
+                // Remove row button (delegated)
+                $('#stixMappingRows').on('click', '.remove-stix-mapping', function() {
+                    $(this).closest('tr').remove();
+                    serializeStixMappings();
+                });
+
+                // Serialize on any input change
+                $('#stixMappingRows').on('change keyup', '.stix-mapping-misp-field, .stix-mapping-value', function() {
+                    serializeStixMappings();
+                });
             });
-        });
-    })();
-</script>
+        })();
+    </script>
