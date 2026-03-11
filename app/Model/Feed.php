@@ -1413,6 +1413,115 @@ class Feed extends AppModel
         return $feedUrl;
     }
 
+    /**
+     * Apply user-defined custom STIX-to-MISP field mappings to converted events.
+     *
+     * Reads the raw STIX data, extracts values for user-specified STIX key paths,
+     * and sets the corresponding MISP event or attribute fields on the converted events.
+     *
+     * @param array $events Array of converted MISP events (by reference)
+     * @param string $rawStixData The original raw STIX JSON/XML data
+     * @param array $customMapping The custom mapping config with 'event' and 'attribute' keys
+     * @return void
+     */
+    private function __applyStixCustomMapping(array &$events, $rawStixData, array $customMapping)
+    {
+        if (empty($customMapping)) {
+            return;
+        }
+
+        // Try to parse raw STIX data as JSON for key extraction
+        $stixParsed = json_decode($rawStixData, true);
+        if ($stixParsed === null) {
+            $this->log("Custom STIX mapping: could not parse raw STIX data as JSON, skipping custom mapping.", LOG_NOTICE);
+            return;
+        }
+
+        // Collect all STIX objects into a flat list for lookup
+        $stixObjects = [];
+        if (isset($stixParsed['objects']) && is_array($stixParsed['objects'])) {
+            // STIX 2.x bundle
+            $stixObjects = $stixParsed['objects'];
+        } elseif (isset($stixParsed['type'])) {
+            // Single STIX 2.x object
+            $stixObjects = [$stixParsed];
+        }
+
+        // Helper: resolve a dot-notation key path from an associative array
+        $resolveKey = function ($obj, $keyPath) use (&$resolveKey) {
+            $parts = explode('.', $keyPath, 2);
+            $key = $parts[0];
+            if (!isset($obj[$key])) {
+                return null;
+            }
+            if (count($parts) === 1) {
+                return is_scalar($obj[$key]) ? (string)$obj[$key] : json_encode($obj[$key]);
+            }
+            if (is_array($obj[$key])) {
+                return $resolveKey($obj[$key], $parts[1]);
+            }
+            return null;
+        };
+
+        // Apply event-level mappings
+        if (!empty($customMapping['event'])) {
+            foreach ($events as &$event) {
+                foreach ($customMapping['event'] as $stixKey => $mispField) {
+                    // Search all STIX objects for the key
+                    foreach ($stixObjects as $stixObj) {
+                        $value = $resolveKey($stixObj, $stixKey);
+                        if ($value !== null) {
+                            $event['Event'][$mispField] = $value;
+                            break; // Use first match
+                        }
+                    }
+                }
+            }
+            unset($event);
+        }
+
+        // Apply attribute-level mappings
+        if (!empty($customMapping['attribute'])) {
+            foreach ($events as &$event) {
+                if (!empty($event['Event']['Attribute'])) {
+                    foreach ($event['Event']['Attribute'] as &$attribute) {
+                        foreach ($customMapping['attribute'] as $stixKey => $mispField) {
+                            foreach ($stixObjects as $stixObj) {
+                                $value = $resolveKey($stixObj, $stixKey);
+                                if ($value !== null) {
+                                    $attribute[$mispField] = $value;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    unset($attribute);
+                }
+                // Also apply to object attributes
+                if (!empty($event['Event']['Object'])) {
+                    foreach ($event['Event']['Object'] as &$object) {
+                        if (!empty($object['Attribute'])) {
+                            foreach ($object['Attribute'] as &$objAttr) {
+                                foreach ($customMapping['attribute'] as $stixKey => $mispField) {
+                                    foreach ($stixObjects as $stixObj) {
+                                        $value = $resolveKey($stixObj, $stixKey);
+                                        if ($value !== null) {
+                                            $objAttr[$mispField] = $value;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            unset($objAttr);
+                        }
+                    }
+                    unset($object);
+                }
+            }
+            unset($event);
+        }
+    }
+
     private function downloadStixFeed(array $feed, HttpSocket $HttpSocket = null, array $user, $jobId = false)
     {
         $feedId = $feed['Feed']['id'];
@@ -1431,6 +1540,9 @@ class Feed extends AppModel
             $this->jobProgress($jobId, __('Feed %s: STIX data is empty.', $feedId));
             return true;
         }
+
+        // Keep a copy of raw STIX data for custom mapping (before we unset it)
+        $rawStixData = $data;
 
         $this->jobProgress($jobId, __('Feed %s: Converting STIX data to MISP format.', $feedId), 20);
 
@@ -1489,6 +1601,12 @@ class Feed extends AppModel
         } else {
             $events[] = ['Event' => $convertedData];
         }
+
+        // Apply custom STIX field mappings if configured
+        if (!empty($feed['Feed']['settings']['stix_custom_mapping'])) {
+            $this->__applyStixCustomMapping($events, $rawStixData, $feed['Feed']['settings']['stix_custom_mapping']);
+        }
+        unset($rawStixData);
 
         $total = count($events);
         $successCount = 0;

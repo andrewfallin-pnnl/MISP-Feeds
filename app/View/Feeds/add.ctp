@@ -1,5 +1,9 @@
 <?php
 $edit = $this->request->params['action'] === 'edit' ? true : false;
+$existingStixMapping = [];
+if ($edit && !empty($entity['Feed']['settings']['stix_custom_mapping'])) {
+    $existingStixMapping = $entity['Feed']['settings']['stix_custom_mapping'];
+}
 echo $this->element('genericElements/Form/genericForm', [
     'data' => [
         'title' => $edit ? __('Edit MISP feed') : __('Add MISP Feed'),
@@ -197,6 +201,26 @@ echo $this->element('genericElements/Form/genericForm', [
 ]);
 ?>
 
+<!-- STIX Custom Mapping Sections -->
+<div id="stixCustomMappingContainer" class="optionalField" style="display:none; padding: 0 20px 20px 20px;">
+    <!-- Event Mappings -->
+    <div id="stixEventMappingSection" style="margin-bottom: 15px;">
+        <h4 style="display: inline-block; margin-right: 8px;"><?php echo __('Custom Event Mappings'); ?></h4>
+        <span class="btn btn-mini btn-primary" onclick="addStixMappingRow('event')" title="<?php echo __('Add event mapping'); ?>">
+            <i class="fa fa-plus"></i>
+        </span>
+        <div id="stixEventMappingRows" style="margin-top: 8px;"></div>
+    </div>
+    <!-- Attribute Mappings -->
+    <div id="stixAttributeMappingSection">
+        <h4 style="display: inline-block; margin-right: 8px;"><?php echo __('Custom Attribute Mappings'); ?></h4>
+        <span class="btn btn-mini btn-primary" onclick="addStixMappingRow('attribute')" title="<?php echo __('Add attribute mapping'); ?>">
+            <i class="fa fa-plus"></i>
+        </span>
+        <div id="stixAttributeMappingRows" style="margin-top: 8px;"></div>
+    </div>
+</div>
+
 <?php
 if (!$ajax) {
     echo $this->element('/genericElements/SideMenu/side_menu', $menuData);
@@ -204,7 +228,67 @@ if (!$ajax) {
 ?>
 
 <script type="text/javascript">
+    var stixExistingMapping = <?php echo json_encode($existingStixMapping); ?>;
+
+    var stixEventFields = {
+        'info': '<?php echo __("Event Info"); ?>',
+        'date': '<?php echo __("Date"); ?>',
+        'threat_level_id': '<?php echo __("Threat Level"); ?>',
+        'analysis': '<?php echo __("Analysis"); ?>',
+        'extends_uuid': '<?php echo __("Extends Event UUID"); ?>'
+    };
+
+    var stixAttributeFields = {
+        'type': '<?php echo __("Type"); ?>',
+        'category': '<?php echo __("Category"); ?>',
+        'value': '<?php echo __("Value"); ?>',
+        'comment': '<?php echo __("Comment"); ?>',
+        'to_ids': '<?php echo __("IDS Flag"); ?>'
+    };
+
     $(document).ready(function() {
+        // Inject hidden input for custom mapping into the form
+        var $form = $('#FeedSourceFormat').closest('form');
+        if ($form.length && !$form.find('#FeedSettingsStixCustomMapping').length) {
+            $form.append('<input type="hidden" name="data[Feed][settings][stix_custom_mapping]" id="FeedSettingsStixCustomMapping" value="">');
+        }
+
+        // Move the custom mapping container into the form (before the submit button)
+        var $submitDiv = $form.find('.form-group').last();
+        if ($submitDiv.length) {
+            $('#stixCustomMappingContainer').insertBefore($submitDiv);
+        } else {
+            $form.append($('#stixCustomMappingContainer'));
+        }
+
+        // Load existing mappings on edit
+        if (stixExistingMapping) {
+            if (stixExistingMapping.event) {
+                $.each(stixExistingMapping.event, function(stixKey, mispField) {
+                    addStixMappingRow('event', stixKey, mispField);
+                });
+            }
+            if (stixExistingMapping.attribute) {
+                $.each(stixExistingMapping.attribute, function(stixKey, mispField) {
+                    addStixMappingRow('attribute', stixKey, mispField);
+                });
+            }
+        }
+
+        // Intercept form submission to serialize mappings
+        $form.on('submit', function() {
+            serializeStixMappings();
+        });
+
+        // Also intercept the ajax submit
+        var origSubmit = window.submitGenericFormInPlace;
+        if (typeof origSubmit === 'function') {
+            window.submitGenericFormInPlace = function() {
+                serializeStixMappings();
+                origSubmit.apply(this, arguments);
+            };
+        }
+
         feedFormUpdate();
         $("#FeedSourceFormat, #FeedFixedEvent, #FeedInputSource, #FeedDistribution").change(function() {
             feedFormUpdate();

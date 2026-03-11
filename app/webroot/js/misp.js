@@ -4463,6 +4463,17 @@ function feedFormUpdate() {
             $('#settingsCsvDelimiterDiv').show();
             $('#settingsCommonExcluderegexDiv').show();
             break;
+        case 'stix':
+            $('#TargetDiv').show();
+            $('#OrgcDiv').show();
+            $('#OverrideIdsDiv').show();
+            $('#PublishDiv').show();
+            if ($('#FeedTarget').val() != 0) {
+                $('#TargetEventDiv').show();
+                $('#DeltaMergeDiv').show();
+            }
+            $('#stixCustomMappingContainer').show();
+            break;
     }
     if ($('#FeedInputSource').val() == 'local') {
         $('#DeleteLocalFileDiv').show();
@@ -6129,4 +6140,75 @@ function sanitizeUrlForTraversal(url) {
     }
 
     return url;
+}
+
+function addStixMappingRow(scope, existingKey, existingValue) {
+    var fields = (scope === 'event') ? stixEventFields : stixAttributeFields;
+    var containerId = (scope === 'event') ? '#stixEventMappingRows' : '#stixAttributeMappingRows';
+    var usedFields = getUsedStixFields(scope);
+    var options = '<option value="">-- Select MISP Field --</option>';
+    $.each(fields, function(key, label) {
+        var selected = (existingValue === key) ? ' selected' : '';
+        var disabled = (!selected && usedFields.indexOf(key) !== -1) ? ' disabled' : '';
+        options += '<option value="' + key + '"' + selected + disabled + '>' + label + ' (' + scope + ')' + '</option>';
+    });
+    var row = '<div class="stix-mapping-row" data-scope="' + scope + '" style="margin-bottom: 5px;">' +
+        '<input type="text" class="stix-key-input form-control" placeholder="STIX Key" style="width: 200px; display: inline-block;" value="' + (existingKey || '') + '">' +
+        '<span style="margin: 0 10px;">&rarr;</span>' +
+        '<select class="misp-field-select form-control" style="width: 220px; display: inline-block;" onchange="onStixFieldChanged(\'' + scope + '\')">' +
+        options +
+        '</select>' +
+        ' <span class="btn btn-mini btn-danger" onclick="removeStixMappingRow(this, \'' + scope + '\')" title="Remove mapping">' +
+        '<i class="fa fa-minus"></i>' +
+        '</span>' +
+        '</div>';
+    $(containerId).append(row);
+}
+
+function removeStixMappingRow(element, scope) {
+    $(element).closest('.stix-mapping-row').remove();
+    refreshStixDropdowns(scope);
+}
+
+function onStixFieldChanged(scope) {
+    refreshStixDropdowns(scope);
+}
+
+function getUsedStixFields(scope) {
+    var containerId = (scope === 'event') ? '#stixEventMappingRows' : '#stixAttributeMappingRows';
+    var used = [];
+    $(containerId).find('.misp-field-select').each(function() {
+        var val = $(this).val();
+        if (val) { used.push(val); }
+    });
+    return used;
+}
+
+function refreshStixDropdowns(scope) {
+    var containerId = (scope === 'event') ? '#stixEventMappingRows' : '#stixAttributeMappingRows';
+    var usedFields = getUsedStixFields(scope);
+    $(containerId).find('.misp-field-select').each(function() {
+        var currentVal = $(this).val();
+        $(this).find('option').each(function() {
+            var optVal = $(this).val();
+            if (!optVal) return;
+            $(this).prop('disabled', optVal !== currentVal && usedFields.indexOf(optVal) !== -1);
+        });
+    });
+}
+
+function serializeStixMappings() {
+    var mapping = {event: {}, attribute: {}};
+    $('#stixEventMappingRows .stix-mapping-row').each(function() {
+        var stixKey = $(this).find('.stix-key-input').val().trim();
+        var mispField = $(this).find('.misp-field-select').val();
+        if (stixKey && mispField) { mapping.event[stixKey] = mispField; }
+    });
+    $('#stixAttributeMappingRows .stix-mapping-row').each(function() {
+        var stixKey = $(this).find('.stix-key-input').val().trim();
+        var mispField = $(this).find('.misp-field-select').val();
+        if (stixKey && mispField) { mapping.attribute[stixKey] = mispField; }
+    });
+    var hasMapping = Object.keys(mapping.event).length > 0 || Object.keys(mapping.attribute).length > 0;
+    $('#FeedSettingsStixCustomMapping').val(hasMapping ? JSON.stringify(mapping) : '');
 }

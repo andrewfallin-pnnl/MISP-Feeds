@@ -281,6 +281,13 @@ class FeedsController extends AppController
                 if (isset($feed['Feed']['settings']['delimiter']) && empty($feed['Feed']['settings']['delimiter'])) {
                     $feed['Feed']['settings']['delimiter'] = ',';
                 }
+                // Process STIX custom mapping JSON from form submission
+                if (!empty($feed['Feed']['settings']['stix_custom_mapping']) && is_string($feed['Feed']['settings']['stix_custom_mapping'])) {
+                    $decoded = json_decode($feed['Feed']['settings']['stix_custom_mapping'], true);
+                    if ($decoded !== null) {
+                        $feed['Feed']['settings']['stix_custom_mapping'] = $decoded;
+                    }
+                }
                 if (empty($feed['Feed']['target_event'])) {
                     $feed['Feed']['target_event'] = 0;
                 }
@@ -453,6 +460,13 @@ class FeedsController extends AppController
                 }
                 if (isset($feed['Feed']['settings']['delimiter']) && empty($feed['Feed']['settings']['delimiter'])) {
                     $feed['Feed']['settings']['delimiter'] = ',';
+                }
+                // Process STIX custom mapping JSON from form submission
+                if (!empty($feed['Feed']['settings']['stix_custom_mapping']) && is_string($feed['Feed']['settings']['stix_custom_mapping'])) {
+                    $decoded = json_decode($feed['Feed']['settings']['stix_custom_mapping'], true);
+                    if ($decoded !== null) {
+                        $feed['Feed']['settings']['stix_custom_mapping'] = $decoded;
+                    }
                 }
                 $feed['Feed']['settings'] = json_encode($feed['Feed']['settings']);
 
