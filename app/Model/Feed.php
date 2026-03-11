@@ -1490,11 +1490,26 @@ class Feed extends AppModel
             $events[] = ['Event' => $convertedData];
         }
 
+        // Apply custom STIX field mappings from feed settings
+        $stixMapping = [];
+        if (!empty($feed['Feed']['settings']['stix_mapping']) && is_array($feed['Feed']['settings']['stix_mapping'])) {
+            $stixMapping = $feed['Feed']['settings']['stix_mapping'];
+        }
+
         $total = count($events);
         $successCount = 0;
         $failCount = 0;
 
         foreach ($events as $k => $event) {
+            // Apply custom STIX field mappings to event-level fields
+            if (!empty($stixMapping)) {
+                foreach ($stixMapping as $mapping) {
+                    if (!empty($mapping['misp_field']) && isset($mapping['value'])) {
+                        $event['Event'][$mapping['misp_field']] = $mapping['value'];
+                    }
+                }
+            }
+
             // Apply feed distribution settings
             if (5 != $feed['Feed']['distribution']) {
                 $event['Event']['distribution'] = $feed['Feed']['distribution'];

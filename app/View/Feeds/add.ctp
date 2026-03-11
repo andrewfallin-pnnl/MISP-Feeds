@@ -92,7 +92,7 @@ echo $this->element('genericElements/Form/genericForm', [
             [
                 'field' => 'fixed_event',
                 'label' => __('Target Event'),
-                'options' => [1 =>'Fixed Event', 0 => 'New Event Each Pull'],
+                'options' => [1 => 'Fixed Event', 0 => 'New Event Each Pull'],
                 'type' => 'dropdown',
                 'div' => ['id' => 'TargetDiv', 'style' => 'display:none', 'class' => 'optionalField'],
                 'class' => 'form-control span6'
@@ -128,6 +128,12 @@ echo $this->element('genericElements/Form/genericForm', [
                 'div' => ['id' => 'settingsCommonExcluderegexDiv', 'style' => 'display:none', 'class' => 'optionalField'],
                 'placeholder' => __('Regex pattern, for example: "/^https://myfeedurl/i'),
                 'class' => 'form-control span6'
+            ],
+            [
+                'field' => 'Feed.settings.stix_mapping',
+                'label' => __('STIX Custom Field Mapping'),
+                'type' => 'stix_mapping',
+                'div' => ['id' => 'settingsStixMappingDiv', 'style' => 'display:none', 'class' => 'optionalField'],
             ],
             [
                 'field' => 'publish',

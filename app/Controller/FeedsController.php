@@ -228,7 +228,7 @@ class FeedsController extends AppController
                         $feed['Feed']['fixed_event'] = '1';
                     }
                 }
-                
+
                 //  // add job_id
                 // if (!isset($feed['Feed']['job_id'])) {
                 //     $feed['Feed']['job_id'] = 0;
@@ -280,6 +280,14 @@ class FeedsController extends AppController
                 }
                 if (isset($feed['Feed']['settings']['delimiter']) && empty($feed['Feed']['settings']['delimiter'])) {
                     $feed['Feed']['settings']['delimiter'] = ',';
+                }
+                if (!empty($feed['Feed']['settings']['stix_mapping'])) {
+                    if (is_string($feed['Feed']['settings']['stix_mapping'])) {
+                        $feed['Feed']['settings']['stix_mapping'] = json_decode($feed['Feed']['settings']['stix_mapping'], true);
+                    }
+                    if (!is_array($feed['Feed']['settings']['stix_mapping'])) {
+                        $feed['Feed']['settings']['stix_mapping'] = [];
+                    }
                 }
                 if (empty($feed['Feed']['target_event'])) {
                     $feed['Feed']['target_event'] = 0;
@@ -454,6 +462,14 @@ class FeedsController extends AppController
                 if (isset($feed['Feed']['settings']['delimiter']) && empty($feed['Feed']['settings']['delimiter'])) {
                     $feed['Feed']['settings']['delimiter'] = ',';
                 }
+                if (!empty($feed['Feed']['settings']['stix_mapping'])) {
+                    if (is_string($feed['Feed']['settings']['stix_mapping'])) {
+                        $feed['Feed']['settings']['stix_mapping'] = json_decode($feed['Feed']['settings']['stix_mapping'], true);
+                    }
+                    if (!is_array($feed['Feed']['settings']['stix_mapping'])) {
+                        $feed['Feed']['settings']['stix_mapping'] = [];
+                    }
+                }
                 $feed['Feed']['settings'] = json_encode($feed['Feed']['settings']);
 
                 return $feed;
@@ -518,7 +534,7 @@ class FeedsController extends AppController
         ]);
 
         $this->set('feedId', $feedId);
-        if(!empty($this->request->data['Feed']['rules'])){
+        if (!empty($this->request->data['Feed']['rules'])) {
             $this->request->data['Feed']['pull_rules'] = $this->request->data['Feed']['rules'];
         }
         $this->set('pull_scope', 'feed');
@@ -593,7 +609,7 @@ class FeedsController extends AppController
                 true,
                 $jobId
             );
-            
+
             $this->updateFeedwithJobId($feedId, $jobId);
 
             $message = __('Pull queued for background execution. Job id ' . $jobId);
