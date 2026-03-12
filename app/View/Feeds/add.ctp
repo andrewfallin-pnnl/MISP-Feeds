@@ -203,10 +203,12 @@ echo $this->element('genericElements/Form/genericForm', [
 
 <!-- STIX Custom Mapping Section -->
 <div id="stixCustomMappingContainer" class="optionalField" style="display:none;">
-    <div class="input" style="clear: both;">
+    <div style="clear: both; padding: 5px 0 8px 0;">
+        <label id="stixMappingLabel" style="display:none; font-weight: bold;"><?php echo __('Custom Mappings'); ?></label>
         <div id="stixMappingRows"></div>
         <span id="stixMappingFormEnable" class="btn btn-inverse" style="line-height:10px; padding: 4px 4px; margin-top: 5px;"><?php echo __('Add Custom STIX Mapping'); ?></span>
     </div>
+    <div class="clear"></div>
 </div>
 
 <?php

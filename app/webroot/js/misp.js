@@ -6161,26 +6161,39 @@ function addStixMappingRow(existingKey, existingValue) {
         options += '<option value="' + prefixedKey + '"' + selected + disabled + '>' + label + ' (attribute)</option>';
     });
     options += '</optgroup>';
-    var row = '<div class="stix-mapping-row" style="margin-bottom: 5px;">' +
-        '<input type="text" class="stix-key-input form-control" placeholder="STIX Key Path (e.g. name, external_references.0.url)" style="width: 260px; display: inline-block;" value="' + (existingKey || '') + '">' +
-        '<span style="margin: 0 10px;">&rarr;</span>' +
-        '<select class="misp-field-select form-control" style="width: 240px; display: inline-block;" onchange="onStixFieldChanged()">' +
+    var row = '<div class="stix-mapping-row" style="display: flex; align-items: center; margin-bottom: 5px;">' +
+        '<input type="text" class="stix-key-input form-control" placeholder="STIX Key Path (e.g. name, external_references.0.url)" style="width: 260px;" value="' + (existingKey || '') + '">' +
+        '<span style="margin: 0 10px; line-height: 1;">&rarr;</span>' +
+        '<select class="misp-field-select form-control" style="width: 240px;" onchange="onStixFieldChanged()">' +
         options +
         '</select>' +
-        ' <span class="btn btn-mini btn-danger" onclick="removeStixMappingRow(this)" title="Remove mapping">' +
+        ' <span class="btn btn-mini btn-danger" onclick="removeStixMappingRow(this)" title="Remove mapping" style="margin-left: 10px; line-height: 1;">' +
         '<i class="fa fa-trash"></i>' +
         '</span>' +
         '</div>';
     $('#stixMappingRows').append(row);
+    updateStixMappingLabel();
 }
 
 function removeStixMappingRow(element) {
     $(element).closest('.stix-mapping-row').remove();
     refreshStixDropdowns();
+    updateStixMappingLabel();
 }
 
 function onStixFieldChanged() {
     refreshStixDropdowns();
+}
+
+function updateStixMappingLabel() {
+    var $label = $('#stixMappingLabel');
+    if ($label.length) {
+        if ($('#stixMappingRows .stix-mapping-row').length > 0) {
+            $label.show();
+        } else {
+            $label.hide();
+        }
+    }
 }
 
 function getUsedStixFields() {
