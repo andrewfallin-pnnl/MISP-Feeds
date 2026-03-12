@@ -204,11 +204,8 @@ echo $this->element('genericElements/Form/genericForm', [
 <!-- STIX Custom Mapping Section -->
 <div id="stixCustomMappingContainer" class="optionalField" style="display:none; padding: 0 20px 20px 20px;">
     <div style="clear: both;">
-        <span id="stixMappingFormEnable" class="btn btn-inverse quick-popover" style="line-height:10px; padding: 4px 4px;"><?php echo __('Add Custom STIX Mapping'); ?></span>
-        <div id="stixMappingForm" class="quick-form" style="display:none; margin-top: 8px;">
-            <div id="stixMappingRows"></div>
-            <span class="btn btn-inverse" onclick="addStixMappingRow()" style="line-height:10px; padding: 4px 4px; margin-top: 5px;"><?php echo __('Add mapping row'); ?></span>
-        </div>
+        <div id="stixMappingRows"></div>
+        <span id="stixMappingFormEnable" class="btn btn-inverse" style="line-height:10px; padding: 4px 4px; margin-top: 5px;"><?php echo __('Add Custom STIX Mapping'); ?></span>
     </div>
 </div>
 
@@ -244,24 +241,23 @@ if (!$ajax) {
             $form.append('<input type="hidden" name="data[Feed][settings][stix_custom_mapping]" id="FeedSettingsStixCustomMapping" value="">');
         }
 
-        // Move the custom mapping container into the form (before the Distribution field)
-        var $distributionDiv = $('#FeedDistribution').closest('.form-group');
-        if ($distributionDiv.length) {
-            $('#stixCustomMappingContainer').insertBefore($distributionDiv);
+        // Move the custom mapping container into the form (above Auto Publish, below Target Event ID)
+        var $publishDiv = $('#PublishDiv');
+        if ($publishDiv.length) {
+            $('#stixCustomMappingContainer').insertBefore($publishDiv);
         } else {
-            // Fallback: before the submit button
-            var $submitDiv = $form.find('.form-group').last();
-            if ($submitDiv.length) {
-                $('#stixCustomMappingContainer').insertBefore($submitDiv);
+            // Fallback: before the Distribution field
+            var $distDiv = $('#FeedDistribution').closest('div.input, div.form-group');
+            if ($distDiv.length) {
+                $('#stixCustomMappingContainer').insertBefore($distDiv);
             } else {
                 $form.append($('#stixCustomMappingContainer'));
             }
         }
 
-        // Toggle button to show/hide the mapping form
+        // "Add Custom STIX Mapping" button adds a new row each time it is clicked
         $('#stixMappingFormEnable').click(function() {
-            $('#stixMappingFormEnable').hide();
-            $('#stixMappingForm').show();
+            addStixMappingRow();
         });
 
         // Load existing mappings on edit
@@ -278,10 +274,6 @@ if (!$ajax) {
                     addStixMappingRow(stixKey, mispField);
                     hasExisting = true;
                 });
-            }
-            if (hasExisting) {
-                $('#stixMappingFormEnable').hide();
-                $('#stixMappingForm').show();
             }
         }
 

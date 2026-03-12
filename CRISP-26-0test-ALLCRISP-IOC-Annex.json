@@ -1,0 +1,452 @@
+{
+    "type": "bundle",
+    "id": "bundle--171903cf-07ef-434d-9a02-72d1f782ec80",
+    "objects": [
+        {
+            "type": "incident",
+            "spec_version": "2.1",
+            "id": "incident--4a7135a6-43a0-48c9-8f0a-d54d8578481e",
+            "created": "2026-02-05T19:25:06.735965Z",
+            "modified": "2026-02-05T19:25:06.735965Z",
+            "name": "CRISP-26-0test",
+            "description": "CRISP Case Number CRISP-26-0test",
+            "external_references": [
+                {
+                    "source_name": "case-number",
+                    "external_id": "CRISP-26-0test"
+                }
+            ]
+        },
+        {
+            "type": "domain-name",
+            "spec_version": "2.1",
+            "id": "domain-name--57439325-073a-5aa4-b16f-873bfa060624",
+            "value": "tor-exit-184.relayon.org"
+        },
+        {
+            "type": "domain-name",
+            "spec_version": "2.1",
+            "id": "domain-name--d1ab5d06-f8e8-5a90-bf5d-db083150a5f6",
+            "value": "tor-exit-34.for-privacy.net"
+        },
+        {
+            "type": "domain-name",
+            "spec_version": "2.1",
+            "id": "domain-name--333fed24-f355-5265-a7e0-526e11ad3079",
+            "value": "tor-exit-4.zbau.f3netze.de"
+        },
+        {
+            "type": "observed-data",
+            "spec_version": "2.1",
+            "id": "observed-data--04bdff11-c26b-4900-b06e-caefd0935159",
+            "created": "2026-02-05T19:25:06.739673Z",
+            "modified": "2026-02-05T19:25:06.739673Z",
+            "first_observed": "2026-02-05T19:25:06Z",
+            "last_observed": "2026-02-05T19:25:06Z",
+            "number_observed": 3,
+            "object_refs": [
+                "domain-name--57439325-073a-5aa4-b16f-873bfa060624",
+                "domain-name--d1ab5d06-f8e8-5a90-bf5d-db083150a5f6",
+                "domain-name--333fed24-f355-5265-a7e0-526e11ad3079"
+            ],
+            "x_case_number": "CRISP-26-0test"
+        },
+        {
+            "type": "indicator",
+            "spec_version": "2.1",
+            "id": "indicator--f4cd8621-e696-42d7-bfed-8cb7fb6e535b",
+            "created": "2026-02-05T19:25:06.741438Z",
+            "modified": "2026-02-05T19:25:06.741438Z",
+            "name": "domains indicator",
+            "description": "Indicator for group 'domains' IOCs",
+            "pattern": "[domain-name:value = 'tor-exit-184.relayon.org'] OR [domain-name:value = 'tor-exit-34.for-privacy.net'] OR [domain-name:value = 'tor-exit-4.zbau.f3netze.de']",
+            "pattern_type": "stix",
+            "pattern_version": "2.1",
+            "valid_from": "2026-02-05T19:25:06Z",
+            "x_case_number": "CRISP-26-0test"
+        },
+        {
+            "type": "relationship",
+            "spec_version": "2.1",
+            "id": "relationship--5dc8886d-92df-4eba-a274-9bbe4348e8d2",
+            "created": "2026-02-05T19:25:06.760552Z",
+            "modified": "2026-02-05T19:25:06.760552Z",
+            "relationship_type": "related-to",
+            "source_ref": "indicator--f4cd8621-e696-42d7-bfed-8cb7fb6e535b",
+            "target_ref": "incident--4a7135a6-43a0-48c9-8f0a-d54d8578481e"
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--d9a60978-e24c-58df-ac9f-498655929596",
+            "name": "action1_agent(My_Organization).msi"
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--84db5251-cf6b-5406-b99f-baa622f538f5",
+            "name": "C:\\CsUm.exe"
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--9c18a328-8eb8-53ec-be40-3cbea44270dc",
+            "name": "C:\\CsUm.ms1"
+        },
+        {
+            "type": "observed-data",
+            "spec_version": "2.1",
+            "id": "observed-data--62c0a051-a794-429b-8fec-32b2f45056c7",
+            "created": "2026-02-05T19:25:06.762149Z",
+            "modified": "2026-02-05T19:25:06.762149Z",
+            "first_observed": "2026-02-05T19:25:06Z",
+            "last_observed": "2026-02-05T19:25:06Z",
+            "number_observed": 3,
+            "object_refs": [
+                "file--d9a60978-e24c-58df-ac9f-498655929596",
+                "file--84db5251-cf6b-5406-b99f-baa622f538f5",
+                "file--9c18a328-8eb8-53ec-be40-3cbea44270dc"
+            ],
+            "x_case_number": "CRISP-26-0test"
+        },
+        {
+            "type": "indicator",
+            "spec_version": "2.1",
+            "id": "indicator--c5ca01df-f493-4942-b8a4-8954c5d4159e",
+            "created": "2026-02-05T19:25:06.762707Z",
+            "modified": "2026-02-05T19:25:06.762707Z",
+            "name": "files indicator",
+            "description": "Indicator for group 'files' IOCs",
+            "pattern": "[file:name = 'action1_agent(My_Organization).msi'] OR [file:name = 'C:\\\\CsUm.exe'] OR [file:name = 'C:\\\\CsUm.ms1']",
+            "pattern_type": "stix",
+            "pattern_version": "2.1",
+            "valid_from": "2026-02-05T19:25:06Z",
+            "x_case_number": "CRISP-26-0test"
+        },
+        {
+            "type": "relationship",
+            "spec_version": "2.1",
+            "id": "relationship--1501e28c-4c81-49c9-b230-baf9b17993e7",
+            "created": "2026-02-05T19:25:06.767226Z",
+            "modified": "2026-02-05T19:25:06.767226Z",
+            "relationship_type": "related-to",
+            "source_ref": "indicator--c5ca01df-f493-4942-b8a4-8954c5d4159e",
+            "target_ref": "incident--4a7135a6-43a0-48c9-8f0a-d54d8578481e"
+        },
+        {
+            "type": "ipv4-addr",
+            "spec_version": "2.1",
+            "id": "ipv4-addr--d1e5c093-cc67-5c9a-8b75-5449b7cac5d4",
+            "value": "149.154.161.217"
+        },
+        {
+            "type": "ipv4-addr",
+            "spec_version": "2.1",
+            "id": "ipv4-addr--e11f7000-95c9-57df-b694-ece4d749fa1f",
+            "value": "149.154.161.219"
+        },
+        {
+            "type": "ipv4-addr",
+            "spec_version": "2.1",
+            "id": "ipv4-addr--9b522f34-cb67-59fb-b542-b2f7bf6c959c",
+            "value": "149.154.161.235"
+        },
+        {
+            "type": "ipv6-addr",
+            "spec_version": "2.1",
+            "id": "ipv6-addr--e5b8a40b-0f61-53a4-86b5-371200825241",
+            "value": "2a0c:8a40:0001:0005:0000:0000:0000:0206"
+        },
+        {
+            "type": "ipv6-addr",
+            "spec_version": "2.1",
+            "id": "ipv6-addr--b6c4452a-e450-5df4-818d-37972ba484a8",
+            "value": "2a0c:8a40:0001:0005:0000:0000:0000:04f2"
+        },
+        {
+            "type": "ipv6-addr",
+            "spec_version": "2.1",
+            "id": "ipv6-addr--1294eac9-7974-5957-87d9-513d47202ebe",
+            "value": "2a0c:8a40:0001:0005:0000:0000:0000:05c0"
+        },
+        {
+            "type": "observed-data",
+            "spec_version": "2.1",
+            "id": "observed-data--cba1c8aa-eb58-4d8a-a01f-998e005554ac",
+            "created": "2026-02-05T19:25:06.769109Z",
+            "modified": "2026-02-05T19:25:06.769109Z",
+            "first_observed": "2026-02-05T19:25:06Z",
+            "last_observed": "2026-02-05T19:25:06Z",
+            "number_observed": 6,
+            "object_refs": [
+                "ipv4-addr--d1e5c093-cc67-5c9a-8b75-5449b7cac5d4",
+                "ipv4-addr--e11f7000-95c9-57df-b694-ece4d749fa1f",
+                "ipv4-addr--9b522f34-cb67-59fb-b542-b2f7bf6c959c",
+                "ipv6-addr--e5b8a40b-0f61-53a4-86b5-371200825241",
+                "ipv6-addr--b6c4452a-e450-5df4-818d-37972ba484a8",
+                "ipv6-addr--1294eac9-7974-5957-87d9-513d47202ebe"
+            ],
+            "x_case_number": "CRISP-26-0test"
+        },
+        {
+            "type": "indicator",
+            "spec_version": "2.1",
+            "id": "indicator--356a5de3-0e2b-446c-8a07-b7537e2a0c59",
+            "created": "2026-02-05T19:25:06.769636Z",
+            "modified": "2026-02-05T19:25:06.769636Z",
+            "name": "ips indicator",
+            "description": "Indicator for group 'ips' IOCs",
+            "pattern": "[ipv4-addr:value = '149.154.161.217'] OR [ipv4-addr:value = '149.154.161.219'] OR [ipv4-addr:value = '149.154.161.235'] OR [ipv6-addr:value = '2a0c:8a40:0001:0005:0000:0000:0000:0206'] OR [ipv6-addr:value = '2a0c:8a40:0001:0005:0000:0000:0000:04f2'] OR [ipv6-addr:value = '2a0c:8a40:0001:0005:0000:0000:0000:05c0']",
+            "pattern_type": "stix",
+            "pattern_version": "2.1",
+            "valid_from": "2026-02-05T19:25:06Z",
+            "x_case_number": "CRISP-26-0test"
+        },
+        {
+            "type": "relationship",
+            "spec_version": "2.1",
+            "id": "relationship--64757664-3b66-4718-8abd-6063607dfc97",
+            "created": "2026-02-05T19:25:06.775956Z",
+            "modified": "2026-02-05T19:25:06.775956Z",
+            "relationship_type": "related-to",
+            "source_ref": "indicator--356a5de3-0e2b-446c-8a07-b7537e2a0c59",
+            "target_ref": "incident--4a7135a6-43a0-48c9-8f0a-d54d8578481e"
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--5d282319-43a6-5ca9-aa21-2b0516fe07d4",
+            "hashes": {
+                "MD5": "0B80C5FE24315E61624F176F072A2272"
+            }
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--35198465-e2c5-5932-8574-caa4c8c74eb0",
+            "hashes": {
+                "MD5": "2689C2055DFB1C409EBDB065F4D6E650"
+            }
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--75b1779a-88ab-5446-b163-34aa980af07c",
+            "hashes": {
+                "MD5": "B36CA3DEF385DC63C63EB892C6882639"
+            }
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--6be90721-120e-5560-820f-518693fa7fb6",
+            "hashes": {
+                "SHA-1": "97375F0B3D44D1118BF92F837180E5252FD28E04"
+            }
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--3107e27f-6d27-59c6-b10f-6cd3c83f346e",
+            "hashes": {
+                "SHA-1": "D51962BEBE47F624BA00CF906F3C7E8E8D9667F7"
+            }
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--b0d86c71-60ce-5915-9ecc-b88ac215f108",
+            "hashes": {
+                "SHA-1": "E89C843967B610634CAD7C540FC2F42058691A71"
+            }
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--847488af-012a-5801-b554-ba58105d9c16",
+            "hashes": {
+                "SHA-256": "2835C7D739B29EDE591E8F8695315F8FF7E13D70759FAEE1812AF5B5A96B38AE"
+            }
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--74ef5698-403d-512e-b7ce-dbafc127f7ad",
+            "hashes": {
+                "SHA-256": "B775874F83EE81BA98C814C26496CA3799D66C67FAF8445A66B8DEE5E54674EB"
+            }
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--99ac1f75-e921-5de7-bd21-bdd7f530c6db",
+            "hashes": {
+                "SHA-256": "FCDA582E6A912439A71CCD130E7176EE600DB79EA8F5ABC8743E0637D837FBE0"
+            }
+        },
+        {
+            "type": "file",
+            "spec_version": "2.1",
+            "id": "file--7931da2a-c68e-5aa3-a533-81d237d53cf3",
+            "hashes": {
+                "SHA-512": "7d0a8468ed220400c0b8e6f335baa7e070ce880a37e2ac5995b9a97b809026de626da636ac7365249bb974c719edf543b52ed286646f437dc7f810cc2068375c"
+            }
+        },
+        {
+            "type": "observed-data",
+            "spec_version": "2.1",
+            "id": "observed-data--9a6a3165-1028-4a07-892e-365996cbc52f",
+            "created": "2026-02-05T19:25:06.780094Z",
+            "modified": "2026-02-05T19:25:06.780094Z",
+            "first_observed": "2026-02-05T19:25:06Z",
+            "last_observed": "2026-02-05T19:25:06Z",
+            "number_observed": 10,
+            "object_refs": [
+                "file--5d282319-43a6-5ca9-aa21-2b0516fe07d4",
+                "file--35198465-e2c5-5932-8574-caa4c8c74eb0",
+                "file--75b1779a-88ab-5446-b163-34aa980af07c",
+                "file--6be90721-120e-5560-820f-518693fa7fb6",
+                "file--3107e27f-6d27-59c6-b10f-6cd3c83f346e",
+                "file--b0d86c71-60ce-5915-9ecc-b88ac215f108",
+                "file--847488af-012a-5801-b554-ba58105d9c16",
+                "file--74ef5698-403d-512e-b7ce-dbafc127f7ad",
+                "file--99ac1f75-e921-5de7-bd21-bdd7f530c6db",
+                "file--7931da2a-c68e-5aa3-a533-81d237d53cf3"
+            ],
+            "x_case_number": "CRISP-26-0test"
+        },
+        {
+            "type": "indicator",
+            "spec_version": "2.1",
+            "id": "indicator--d10dbf6b-f9f1-44aa-86d7-a9554a4c34d6",
+            "created": "2026-02-05T19:25:06.780712Z",
+            "modified": "2026-02-05T19:25:06.780712Z",
+            "name": "hashes indicator",
+            "description": "Indicator for group 'hashes' IOCs",
+            "pattern": "[file:hashes.MD5 = '0B80C5FE24315E61624F176F072A2272'] OR [file:hashes.MD5 = '2689C2055DFB1C409EBDB065F4D6E650'] OR [file:hashes.MD5 = 'B36CA3DEF385DC63C63EB892C6882639'] OR [file:hashes.'SHA-1' = '97375F0B3D44D1118BF92F837180E5252FD28E04'] OR [file:hashes.'SHA-1' = 'D51962BEBE47F624BA00CF906F3C7E8E8D9667F7'] OR [file:hashes.'SHA-1' = 'E89C843967B610634CAD7C540FC2F42058691A71'] OR [file:hashes.'SHA-256' = '2835C7D739B29EDE591E8F8695315F8FF7E13D70759FAEE1812AF5B5A96B38AE'] OR [file:hashes.'SHA-256' = 'B775874F83EE81BA98C814C26496CA3799D66C67FAF8445A66B8DEE5E54674EB'] OR [file:hashes.'SHA-256' = 'FCDA582E6A912439A71CCD130E7176EE600DB79EA8F5ABC8743E0637D837FBE0'] OR [file:hashes.'SHA-512' = '7d0a8468ed220400c0b8e6f335baa7e070ce880a37e2ac5995b9a97b809026de626da636ac7365249bb974c719edf543b52ed286646f437dc7f810cc2068375c']",
+            "pattern_type": "stix",
+            "pattern_version": "2.1",
+            "valid_from": "2026-02-05T19:25:06Z",
+            "x_case_number": "CRISP-26-0test"
+        },
+        {
+            "type": "relationship",
+            "spec_version": "2.1",
+            "id": "relationship--d73ef440-f76a-4d61-858e-23f6b364ebe6",
+            "created": "2026-02-05T19:25:06.795717Z",
+            "modified": "2026-02-05T19:25:06.795717Z",
+            "relationship_type": "related-to",
+            "source_ref": "indicator--d10dbf6b-f9f1-44aa-86d7-a9554a4c34d6",
+            "target_ref": "incident--4a7135a6-43a0-48c9-8f0a-d54d8578481e"
+        },
+        {
+            "type": "url",
+            "spec_version": "2.1",
+            "id": "url--54113728-f2c2-5c25-a0c8-a6609e5670ea",
+            "value": "https://security.snyk.io/vuln/SNYK-UNMANAGED-ASTERISK-2371586"
+        },
+        {
+            "type": "url",
+            "spec_version": "2.1",
+            "id": "url--2a9f9e59-d082-537a-a260-e63190cd8f79",
+            "value": "https://viz.greynoise.io/analysis/b0047105-cac7-435d-aaaa-90a3f260da32"
+        },
+        {
+            "type": "url",
+            "spec_version": "2.1",
+            "id": "url--ded60d2a-909a-5a94-b0d6-960a78f5a69b",
+            "value": "https://www.abuseipdb.com/check/185.220.100.255"
+        },
+        {
+            "type": "observed-data",
+            "spec_version": "2.1",
+            "id": "observed-data--c1c16bc9-5364-43b6-b7a7-0950886f29ed",
+            "created": "2026-02-05T19:25:06.79685Z",
+            "modified": "2026-02-05T19:25:06.79685Z",
+            "first_observed": "2026-02-05T19:25:06Z",
+            "last_observed": "2026-02-05T19:25:06Z",
+            "number_observed": 3,
+            "object_refs": [
+                "url--54113728-f2c2-5c25-a0c8-a6609e5670ea",
+                "url--2a9f9e59-d082-537a-a260-e63190cd8f79",
+                "url--ded60d2a-909a-5a94-b0d6-960a78f5a69b"
+            ],
+            "x_case_number": "CRISP-26-0test"
+        },
+        {
+            "type": "indicator",
+            "spec_version": "2.1",
+            "id": "indicator--a6fde274-a6c0-47af-b6f5-88a91595d898",
+            "created": "2026-02-05T19:25:06.797361Z",
+            "modified": "2026-02-05T19:25:06.797361Z",
+            "name": "urls indicator",
+            "description": "Indicator for group 'urls' IOCs",
+            "pattern": "[url:value = 'https://security.snyk.io/vuln/SNYK-UNMANAGED-ASTERISK-2371586'] OR [url:value = 'https://viz.greynoise.io/analysis/b0047105-cac7-435d-aaaa-90a3f260da32'] OR [url:value = 'https://www.abuseipdb.com/check/185.220.100.255']",
+            "pattern_type": "stix",
+            "pattern_version": "2.1",
+            "valid_from": "2026-02-05T19:25:06Z",
+            "x_case_number": "CRISP-26-0test"
+        },
+        {
+            "type": "relationship",
+            "spec_version": "2.1",
+            "id": "relationship--6a2c70e3-3b3d-4fe6-88ee-c85cc7ca9dce",
+            "created": "2026-02-05T19:25:06.801466Z",
+            "modified": "2026-02-05T19:25:06.801466Z",
+            "relationship_type": "related-to",
+            "source_ref": "indicator--a6fde274-a6c0-47af-b6f5-88a91595d898",
+            "target_ref": "incident--4a7135a6-43a0-48c9-8f0a-d54d8578481e"
+        },
+        {
+            "type": "x-uri",
+            "spec_version": "2.1",
+            "id": "x-uri--621654da-2cbf-4852-855d-62b4913d4cec",
+            "value": "/callboth.php?SEQ=654321&OUT=123456&IN=1692320654%40nessus%0d%0aasteridex_in_code_injection.nasl"
+        },
+        {
+            "type": "x-uri",
+            "spec_version": "2.1",
+            "id": "x-uri--1d326657-dd8c-4078-abd6-95360c5f8bd9",
+            "value": "/cgi-bin/phf?QALIAS=x%0a/bin/cat%20/etc/passwd"
+        },
+        {
+            "type": "observed-data",
+            "spec_version": "2.1",
+            "id": "observed-data--472fc7c2-3149-4260-bbe5-1667207babfc",
+            "created": "2026-02-05T19:25:06.802246Z",
+            "modified": "2026-02-05T19:25:06.802246Z",
+            "first_observed": "2026-02-05T19:25:06Z",
+            "last_observed": "2026-02-05T19:25:06Z",
+            "number_observed": 2,
+            "object_refs": [
+                "x-uri--621654da-2cbf-4852-855d-62b4913d4cec",
+                "x-uri--1d326657-dd8c-4078-abd6-95360c5f8bd9"
+            ],
+            "x_case_number": "CRISP-26-0test"
+        },
+        {
+            "type": "indicator",
+            "spec_version": "2.1",
+            "id": "indicator--1c01e276-2e64-4945-801e-214de3832970",
+            "created": "2026-02-05T19:25:06.802713Z",
+            "modified": "2026-02-05T19:25:06.802713Z",
+            "name": "uris indicator",
+            "description": "Indicator for group 'uris' IOCs",
+            "pattern": "[x-uri:value = '/callboth.php?SEQ=654321&OUT=123456&IN=1692320654%40nessus%0d%0aasteridex_in_code_injection.nasl'] OR [x-uri:value = '/cgi-bin/phf?QALIAS=x%0a/bin/cat%20/etc/passwd']",
+            "pattern_type": "stix",
+            "pattern_version": "2.1",
+            "valid_from": "2026-02-05T19:25:06Z",
+            "x_case_number": "CRISP-26-0test"
+        },
+        {
+            "type": "relationship",
+            "spec_version": "2.1",
+            "id": "relationship--27cd73c3-393f-40d3-915f-d2915b800b3b",
+            "created": "2026-02-05T19:25:06.807015Z",
+            "modified": "2026-02-05T19:25:06.807015Z",
+            "relationship_type": "related-to",
+            "source_ref": "indicator--1c01e276-2e64-4945-801e-214de3832970",
+            "target_ref": "incident--4a7135a6-43a0-48c9-8f0a-d54d8578481e"
+        }
+    ]
+}
