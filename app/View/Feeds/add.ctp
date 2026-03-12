@@ -202,8 +202,8 @@ echo $this->element('genericElements/Form/genericForm', [
 ?>
 
 <!-- STIX Custom Mapping Section -->
-<div id="stixCustomMappingContainer" class="optionalField" style="display:none; padding: 0 20px 20px 20px;">
-    <div style="clear: both;">
+<div id="stixCustomMappingContainer" class="optionalField" style="display:none;">
+    <div class="input" style="clear: both;">
         <div id="stixMappingRows"></div>
         <span id="stixMappingFormEnable" class="btn btn-inverse" style="line-height:10px; padding: 4px 4px; margin-top: 5px;"><?php echo __('Add Custom STIX Mapping'); ?></span>
     </div>
@@ -265,13 +265,13 @@ if (!$ajax) {
             var hasExisting = false;
             if (stixExistingMapping.event) {
                 $.each(stixExistingMapping.event, function(stixKey, mispField) {
-                    addStixMappingRow(stixKey, mispField);
+                    addStixMappingRow(stixKey, 'event:' + mispField);
                     hasExisting = true;
                 });
             }
             if (stixExistingMapping.attribute) {
                 $.each(stixExistingMapping.attribute, function(stixKey, mispField) {
-                    addStixMappingRow(stixKey, mispField);
+                    addStixMappingRow(stixKey, 'attribute:' + mispField);
                     hasExisting = true;
                 });
             }
