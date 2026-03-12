@@ -201,23 +201,14 @@ echo $this->element('genericElements/Form/genericForm', [
 ]);
 ?>
 
-<!-- STIX Custom Mapping Sections -->
+<!-- STIX Custom Mapping Section -->
 <div id="stixCustomMappingContainer" class="optionalField" style="display:none; padding: 0 20px 20px 20px;">
-    <!-- Event Mappings -->
-    <div id="stixEventMappingSection" style="margin-bottom: 15px;">
-        <h4 style="display: inline-block; margin-right: 8px;"><?php echo __('Custom Event Mappings'); ?></h4>
-        <span class="btn btn-mini btn-primary" onclick="addStixMappingRow('event')" title="<?php echo __('Add event mapping'); ?>">
-            <i class="fa fa-plus"></i>
-        </span>
-        <div id="stixEventMappingRows" style="margin-top: 8px;"></div>
-    </div>
-    <!-- Attribute Mappings -->
-    <div id="stixAttributeMappingSection">
-        <h4 style="display: inline-block; margin-right: 8px;"><?php echo __('Custom Attribute Mappings'); ?></h4>
-        <span class="btn btn-mini btn-primary" onclick="addStixMappingRow('attribute')" title="<?php echo __('Add attribute mapping'); ?>">
-            <i class="fa fa-plus"></i>
-        </span>
-        <div id="stixAttributeMappingRows" style="margin-top: 8px;"></div>
+    <div style="clear: both;">
+        <span id="stixMappingFormEnable" class="btn btn-inverse quick-popover" style="line-height:10px; padding: 4px 4px;"><?php echo __('Add Custom STIX Mapping'); ?></span>
+        <div id="stixMappingForm" class="quick-form" style="display:none; margin-top: 8px;">
+            <div id="stixMappingRows"></div>
+            <span class="btn btn-inverse" onclick="addStixMappingRow()" style="line-height:10px; padding: 4px 4px; margin-top: 5px;"><?php echo __('Add mapping row'); ?></span>
+        </div>
     </div>
 </div>
 
@@ -253,25 +244,44 @@ if (!$ajax) {
             $form.append('<input type="hidden" name="data[Feed][settings][stix_custom_mapping]" id="FeedSettingsStixCustomMapping" value="">');
         }
 
-        // Move the custom mapping container into the form (before the submit button)
-        var $submitDiv = $form.find('.form-group').last();
-        if ($submitDiv.length) {
-            $('#stixCustomMappingContainer').insertBefore($submitDiv);
+        // Move the custom mapping container into the form (before the Distribution field)
+        var $distributionDiv = $('#FeedDistribution').closest('.form-group');
+        if ($distributionDiv.length) {
+            $('#stixCustomMappingContainer').insertBefore($distributionDiv);
         } else {
-            $form.append($('#stixCustomMappingContainer'));
+            // Fallback: before the submit button
+            var $submitDiv = $form.find('.form-group').last();
+            if ($submitDiv.length) {
+                $('#stixCustomMappingContainer').insertBefore($submitDiv);
+            } else {
+                $form.append($('#stixCustomMappingContainer'));
+            }
         }
+
+        // Toggle button to show/hide the mapping form
+        $('#stixMappingFormEnable').click(function() {
+            $('#stixMappingFormEnable').hide();
+            $('#stixMappingForm').show();
+        });
 
         // Load existing mappings on edit
         if (stixExistingMapping) {
+            var hasExisting = false;
             if (stixExistingMapping.event) {
                 $.each(stixExistingMapping.event, function(stixKey, mispField) {
-                    addStixMappingRow('event', stixKey, mispField);
+                    addStixMappingRow(stixKey, mispField);
+                    hasExisting = true;
                 });
             }
             if (stixExistingMapping.attribute) {
                 $.each(stixExistingMapping.attribute, function(stixKey, mispField) {
-                    addStixMappingRow('attribute', stixKey, mispField);
+                    addStixMappingRow(stixKey, mispField);
+                    hasExisting = true;
                 });
+            }
+            if (hasExisting) {
+                $('#stixMappingFormEnable').hide();
+                $('#stixMappingForm').show();
             }
         }
 

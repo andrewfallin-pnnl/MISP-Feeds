@@ -6142,52 +6142,59 @@ function sanitizeUrlForTraversal(url) {
     return url;
 }
 
-function addStixMappingRow(scope, existingKey, existingValue) {
-    var fields = (scope === 'event') ? stixEventFields : stixAttributeFields;
-    var containerId = (scope === 'event') ? '#stixEventMappingRows' : '#stixAttributeMappingRows';
-    var usedFields = getUsedStixFields(scope);
+function addStixMappingRow(existingKey, existingValue) {
+    var usedFields = getUsedStixFields();
     var options = '<option value="">-- Select MISP Field --</option>';
-    $.each(fields, function(key, label) {
-        var selected = (existingValue === key) ? ' selected' : '';
-        var disabled = (!selected && usedFields.indexOf(key) !== -1) ? ' disabled' : '';
-        options += '<option value="' + key + '"' + selected + disabled + '>' + label + ' (' + scope + ')' + '</option>';
+    options += '<optgroup label="Event Fields">';
+    $.each(stixEventFields, function(key, label) {
+        var prefixedKey = 'event:' + key;
+        var selected = (existingValue === prefixedKey) ? ' selected' : '';
+        var disabled = (!selected && usedFields.indexOf(prefixedKey) !== -1) ? ' disabled' : '';
+        options += '<option value="' + prefixedKey + '"' + selected + disabled + '>' + label + ' (event)</option>';
     });
-    var row = '<div class="stix-mapping-row" data-scope="' + scope + '" style="margin-bottom: 5px;">' +
-        '<input type="text" class="stix-key-input form-control" placeholder="STIX Key" style="width: 200px; display: inline-block;" value="' + (existingKey || '') + '">' +
+    options += '</optgroup>';
+    options += '<optgroup label="Attribute Fields">';
+    $.each(stixAttributeFields, function(key, label) {
+        var prefixedKey = 'attribute:' + key;
+        var selected = (existingValue === prefixedKey) ? ' selected' : '';
+        var disabled = (!selected && usedFields.indexOf(prefixedKey) !== -1) ? ' disabled' : '';
+        options += '<option value="' + prefixedKey + '"' + selected + disabled + '>' + label + ' (attribute)</option>';
+    });
+    options += '</optgroup>';
+    var row = '<div class="stix-mapping-row" style="margin-bottom: 5px;">' +
+        '<input type="text" class="stix-key-input form-control" placeholder="STIX Key Path (e.g. name, external_references.0.url)" style="width: 260px; display: inline-block;" value="' + (existingKey || '') + '">' +
         '<span style="margin: 0 10px;">&rarr;</span>' +
-        '<select class="misp-field-select form-control" style="width: 220px; display: inline-block;" onchange="onStixFieldChanged(\'' + scope + '\')">' +
+        '<select class="misp-field-select form-control" style="width: 240px; display: inline-block;" onchange="onStixFieldChanged()">' +
         options +
         '</select>' +
-        ' <span class="btn btn-mini btn-danger" onclick="removeStixMappingRow(this, \'' + scope + '\')" title="Remove mapping">' +
-        '<i class="fa fa-minus"></i>' +
+        ' <span class="btn btn-mini btn-danger" onclick="removeStixMappingRow(this)" title="Remove mapping">' +
+        '<i class="fa fa-trash"></i>' +
         '</span>' +
         '</div>';
-    $(containerId).append(row);
+    $('#stixMappingRows').append(row);
 }
 
-function removeStixMappingRow(element, scope) {
+function removeStixMappingRow(element) {
     $(element).closest('.stix-mapping-row').remove();
-    refreshStixDropdowns(scope);
+    refreshStixDropdowns();
 }
 
-function onStixFieldChanged(scope) {
-    refreshStixDropdowns(scope);
+function onStixFieldChanged() {
+    refreshStixDropdowns();
 }
 
-function getUsedStixFields(scope) {
-    var containerId = (scope === 'event') ? '#stixEventMappingRows' : '#stixAttributeMappingRows';
+function getUsedStixFields() {
     var used = [];
-    $(containerId).find('.misp-field-select').each(function() {
+    $('#stixMappingRows').find('.misp-field-select').each(function() {
         var val = $(this).val();
         if (val) { used.push(val); }
     });
     return used;
 }
 
-function refreshStixDropdowns(scope) {
-    var containerId = (scope === 'event') ? '#stixEventMappingRows' : '#stixAttributeMappingRows';
-    var usedFields = getUsedStixFields(scope);
-    $(containerId).find('.misp-field-select').each(function() {
+function refreshStixDropdowns() {
+    var usedFields = getUsedStixFields();
+    $('#stixMappingRows').find('.misp-field-select').each(function() {
         var currentVal = $(this).val();
         $(this).find('option').each(function() {
             var optVal = $(this).val();
@@ -6199,15 +6206,17 @@ function refreshStixDropdowns(scope) {
 
 function serializeStixMappings() {
     var mapping = {event: {}, attribute: {}};
-    $('#stixEventMappingRows .stix-mapping-row').each(function() {
+    $('#stixMappingRows .stix-mapping-row').each(function() {
         var stixKey = $(this).find('.stix-key-input').val().trim();
         var mispField = $(this).find('.misp-field-select').val();
-        if (stixKey && mispField) { mapping.event[stixKey] = mispField; }
-    });
-    $('#stixAttributeMappingRows .stix-mapping-row').each(function() {
-        var stixKey = $(this).find('.stix-key-input').val().trim();
-        var mispField = $(this).find('.misp-field-select').val();
-        if (stixKey && mispField) { mapping.attribute[stixKey] = mispField; }
+        if (stixKey && mispField) {
+            var parts = mispField.split(':');
+            var scope = parts[0];
+            var field = parts[1];
+            if (scope === 'event' || scope === 'attribute') {
+                mapping[scope][stixKey] = field;
+            }
+        }
     });
     var hasMapping = Object.keys(mapping.event).length > 0 || Object.keys(mapping.attribute).length > 0;
     $('#FeedSettingsStixCustomMapping').val(hasMapping ? JSON.stringify(mapping) : '');
