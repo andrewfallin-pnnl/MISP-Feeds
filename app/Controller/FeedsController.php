@@ -40,6 +40,7 @@ class FeedsController extends AppController
         parent::beforeFilter();
         $this->Security->unlockedActions[] = 'previewIndex';
         $this->Security->unlockedActions[] = 'feedCoverage';
+        $this->Security->unlockedFields[] = 'Feed.settings.stix_custom_mapping';
     }
 
     public function loadDefaultFeeds()
