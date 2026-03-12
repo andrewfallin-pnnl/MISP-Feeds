@@ -1416,8 +1416,10 @@ class Feed extends AppModel
     /**
      * Apply user-defined custom STIX-to-MISP field mappings to converted events.
      *
-     * Reads the raw STIX data, extracts values for user-specified STIX key paths,
-     * and sets the corresponding MISP event or attribute fields on the converted events.
+     * For event-level mappings: searches all STIX objects and uses the first match.
+     * For attribute-level mappings: builds a per-value lookup by tracing each STIX SCO
+     * back to its parent observed-data/indicator via object_refs, so each MISP attribute
+     * gets the correct field value from its own IOC group (1-to-1 mapping).
      *
      * @param array $events Array of converted MISP events (by reference)
      * @param string $rawStixData The original raw STIX JSON/XML data
@@ -1437,14 +1439,21 @@ class Feed extends AppModel
             return;
         }
 
-        // Collect all STIX objects into a flat list for lookup
+        // Collect all STIX objects into a flat list for lookup, indexed by ID
         $stixObjects = [];
+        $stixObjectsById = [];
         if (isset($stixParsed['objects']) && is_array($stixParsed['objects'])) {
-            // STIX 2.x bundle
             $stixObjects = $stixParsed['objects'];
+            foreach ($stixObjects as $obj) {
+                if (isset($obj['id'])) {
+                    $stixObjectsById[$obj['id']] = $obj;
+                }
+            }
         } elseif (isset($stixParsed['type'])) {
-            // Single STIX 2.x object
             $stixObjects = [$stixParsed];
+            if (isset($stixParsed['id'])) {
+                $stixObjectsById[$stixParsed['id']] = $stixParsed;
+            }
         }
 
         // Helper: resolve a dot-notation key path from an associative array
@@ -1463,16 +1472,15 @@ class Feed extends AppModel
             return null;
         };
 
-        // Apply event-level mappings
+        // Apply event-level mappings (first-match is correct here — one value per event)
         if (!empty($customMapping['event'])) {
             foreach ($events as &$event) {
                 foreach ($customMapping['event'] as $stixKey => $mispField) {
-                    // Search all STIX objects for the key
                     foreach ($stixObjects as $stixObj) {
                         $value = $resolveKey($stixObj, $stixKey);
                         if ($value !== null) {
                             $event['Event'][$mispField] = $value;
-                            break; // Use first match
+                            break;
                         }
                     }
                 }
@@ -1480,37 +1488,24 @@ class Feed extends AppModel
             unset($event);
         }
 
-        // Apply attribute-level mappings
+        // Apply attribute-level mappings with per-IOC resolution
         if (!empty($customMapping['attribute'])) {
+            // Build a lookup: normalised IOC value → array of {stixKey => resolved value}
+            // by tracing SCO values through parent observed-data/indicator object_refs
+            $valueLookup = $this->__buildStixValueLookup($stixObjects, $stixObjectsById, $customMapping['attribute'], $resolveKey);
+
             foreach ($events as &$event) {
                 if (!empty($event['Event']['Attribute'])) {
                     foreach ($event['Event']['Attribute'] as &$attribute) {
-                        foreach ($customMapping['attribute'] as $stixKey => $mispField) {
-                            foreach ($stixObjects as $stixObj) {
-                                $value = $resolveKey($stixObj, $stixKey);
-                                if ($value !== null) {
-                                    $attribute[$mispField] = $value;
-                                    break;
-                                }
-                            }
-                        }
+                        $this->__applyAttributeLevelMapping($attribute, $valueLookup, $customMapping['attribute'], $stixObjects, $resolveKey);
                     }
                     unset($attribute);
                 }
-                // Also apply to object attributes
                 if (!empty($event['Event']['Object'])) {
                     foreach ($event['Event']['Object'] as &$object) {
                         if (!empty($object['Attribute'])) {
                             foreach ($object['Attribute'] as &$objAttr) {
-                                foreach ($customMapping['attribute'] as $stixKey => $mispField) {
-                                    foreach ($stixObjects as $stixObj) {
-                                        $value = $resolveKey($stixObj, $stixKey);
-                                        if ($value !== null) {
-                                            $objAttr[$mispField] = $value;
-                                            break;
-                                        }
-                                    }
-                                }
+                                $this->__applyAttributeLevelMapping($objAttr, $valueLookup, $customMapping['attribute'], $stixObjects, $resolveKey);
                             }
                             unset($objAttr);
                         }
@@ -1519,6 +1514,190 @@ class Feed extends AppModel
                 }
             }
             unset($event);
+        }
+    }
+
+    /**
+     * Build a lookup table mapping normalised IOC values to their parent STIX object's
+     * custom field values. This allows 1-to-1 attribute-level mapping by tracing each
+     * SCO back to its observed-data or indicator parent via object_refs.
+     *
+     * @param array $stixObjects All STIX objects from the bundle
+     * @param array $stixObjectsById STIX objects indexed by their STIX ID
+     * @param array $attributeMapping The attribute-level custom mapping (stixKey => mispField)
+     * @param callable $resolveKey Helper to resolve dot-notation key paths
+     * @return array Normalised value => [stixKey => resolved value, ...]
+     */
+    private function __buildStixValueLookup(array $stixObjects, array $stixObjectsById, array $attributeMapping, callable $resolveKey)
+    {
+        $valueLookup = [];
+
+        // Find all parent objects that have object_refs (observed-data, indicators, etc.)
+        foreach ($stixObjects as $parentObj) {
+            // Check if this parent object has any of the mapped keys
+            $parentValues = [];
+            $hasAnyKey = false;
+            foreach ($attributeMapping as $stixKey => $mispField) {
+                $resolved = $resolveKey($parentObj, $stixKey);
+                if ($resolved !== null) {
+                    $parentValues[$stixKey] = $resolved;
+                    $hasAnyKey = true;
+                }
+            }
+            if (!$hasAnyKey) {
+                continue;
+            }
+
+            // Extract IOC values from referenced SCOs via object_refs
+            if (!empty($parentObj['object_refs']) && is_array($parentObj['object_refs'])) {
+                foreach ($parentObj['object_refs'] as $refId) {
+                    if (!isset($stixObjectsById[$refId])) {
+                        continue;
+                    }
+                    $sco = $stixObjectsById[$refId];
+                    $scoValues = $this->__extractScoValues($sco);
+                    foreach ($scoValues as $val) {
+                        $normVal = $this->__normaliseValueForLookup($val);
+                        if ($normVal !== '') {
+                            // Merge parent values; later parents don't overwrite earlier for same value
+                            if (!isset($valueLookup[$normVal])) {
+                                $valueLookup[$normVal] = $parentValues;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Also extract IOC values from indicator patterns
+            if (!empty($parentObj['pattern']) && isset($parentObj['type']) && $parentObj['type'] === 'indicator') {
+                $patternValues = $this->__extractValuesFromStixPattern($parentObj['pattern']);
+                foreach ($patternValues as $val) {
+                    $normVal = $this->__normaliseValueForLookup($val);
+                    if ($normVal !== '' && !isset($valueLookup[$normVal])) {
+                        $valueLookup[$normVal] = $parentValues;
+                    }
+                }
+            }
+        }
+
+        return $valueLookup;
+    }
+
+    /**
+     * Extract all meaningful values from a STIX SCO (observable) object.
+     * Handles domain-name, ipv4-addr, ipv6-addr, url, file (name + hashes), x-uri, etc.
+     *
+     * @param array $sco The STIX SCO object
+     * @return array List of string values
+     */
+    private function __extractScoValues(array $sco)
+    {
+        $values = [];
+
+        // Direct value field (domain-name, ipv4-addr, ipv6-addr, url, x-uri, etc.)
+        if (isset($sco['value']) && is_string($sco['value'])) {
+            $values[] = $sco['value'];
+        }
+
+        // File name
+        if (isset($sco['name']) && is_string($sco['name'])) {
+            $values[] = $sco['name'];
+        }
+
+        // File hashes (MD5, SHA-1, SHA-256, SHA-512, etc.)
+        if (isset($sco['hashes']) && is_array($sco['hashes'])) {
+            foreach ($sco['hashes'] as $hashValue) {
+                if (is_string($hashValue)) {
+                    $values[] = $hashValue;
+                }
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * Extract IOC values from a STIX indicator pattern string.
+     * Parses patterns like: [domain-name:value = 'example.com'] OR [file:hashes.MD5 = 'abc123']
+     *
+     * @param string $pattern STIX pattern string
+     * @return array List of extracted values
+     */
+    private function __extractValuesFromStixPattern($pattern)
+    {
+        $values = [];
+        // Match all single-quoted values in comparison expressions
+        if (preg_match_all("/=\s*'([^']+)'/", $pattern, $matches)) {
+            $values = $matches[1];
+        }
+        return $values;
+    }
+
+    /**
+     * Normalise a value for lookup comparison (case-insensitive, trimmed).
+     *
+     * @param string $value
+     * @return string
+     */
+    private function __normaliseValueForLookup($value)
+    {
+        return strtolower(trim($value));
+    }
+
+    /**
+     * Apply attribute-level custom mapping to a single MISP attribute.
+     * First tries the per-value lookup for 1-to-1 resolution; falls back to
+     * first-match across all STIX objects if no lookup match is found.
+     *
+     * @param array $attribute MISP attribute (by reference)
+     * @param array $valueLookup Per-value lookup table
+     * @param array $attributeMapping stixKey => mispField mapping
+     * @param array $stixObjects All STIX objects (for fallback)
+     * @param callable $resolveKey Key resolver function
+     */
+    private function __applyAttributeLevelMapping(array &$attribute, array $valueLookup, array $attributeMapping, array $stixObjects, callable $resolveKey)
+    {
+        if (empty($attribute['value'])) {
+            return;
+        }
+
+        $normVal = $this->__normaliseValueForLookup($attribute['value']);
+
+        // Try lookup by exact normalised value
+        if (isset($valueLookup[$normVal])) {
+            foreach ($attributeMapping as $stixKey => $mispField) {
+                if (isset($valueLookup[$normVal][$stixKey])) {
+                    $attribute[$mispField] = $valueLookup[$normVal][$stixKey];
+                }
+            }
+            return;
+        }
+
+        // For composite values (e.g. "filename|hash"), try each part
+        if (strpos($attribute['value'], '|') !== false) {
+            $parts = explode('|', $attribute['value']);
+            foreach ($parts as $part) {
+                $normPart = $this->__normaliseValueForLookup($part);
+                if (isset($valueLookup[$normPart])) {
+                    foreach ($attributeMapping as $stixKey => $mispField) {
+                        if (isset($valueLookup[$normPart][$stixKey])) {
+                            $attribute[$mispField] = $valueLookup[$normPart][$stixKey];
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Fallback: search all STIX objects for first match (preserves old behaviour for edge cases)
+        foreach ($attributeMapping as $stixKey => $mispField) {
+            foreach ($stixObjects as $stixObj) {
+                $value = $resolveKey($stixObj, $stixKey);
+                if ($value !== null) {
+                    $attribute[$mispField] = $value;
+                    break;
+                }
+            }
         }
     }
 
