@@ -6163,11 +6163,11 @@ function addStixMappingRow(existingKey, existingValue) {
     options += '</optgroup>';
     var row = '<div class="stix-mapping-row" style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">' +
         '<input type="text" class="stix-key-input form-control" placeholder="STIX Key Path (e.g. name, external_references.0.url)" style="width: 260px; flex-shrink: 0;" value="' + (existingKey || '') + '">' +
-        '<span style="flex-shrink: 0; margin-top: -4px;">&rarr;</span>' +
+        '<span style="flex-shrink: 0; margin-top: -14px;">&rarr;</span>' +
         '<select class="misp-field-select form-control" style="width: 240px; flex-shrink: 0;" onchange="onStixFieldChanged()">' +
         options +
         '</select>' +
-        '<span class="btn btn-mini btn-danger" onclick="removeStixMappingRow(this)" title="Remove mapping" style="flex-shrink: 0; white-space: nowrap; margin-top: -4px;">' +
+        '<span class="btn btn-mini btn-danger" onclick="removeStixMappingRow(this)" title="Remove mapping" style="flex-shrink: 0; white-space: nowrap; margin-top: -10px;">' +
         '<i class="fa fa-trash"></i>' +
         '</span>' +
         '</div>';
