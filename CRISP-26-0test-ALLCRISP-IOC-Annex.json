@@ -107,7 +107,7 @@
                 "file--84db5251-cf6b-5406-b99f-baa622f538f5",
                 "file--9c18a328-8eb8-53ec-be40-3cbea44270dc"
             ],
-            "x_case_number": "CRISP-26-0test"
+            "x_case_number": "CRISP-26-1test"
         },
         {
             "type": "indicator",
@@ -121,7 +121,7 @@
             "pattern_type": "stix",
             "pattern_version": "2.1",
             "valid_from": "2026-02-05T19:25:06Z",
-            "x_case_number": "CRISP-26-0test"
+            "x_case_number": "CRISP-26-1test"
         },
         {
             "type": "relationship",
@@ -186,7 +186,7 @@
                 "ipv6-addr--b6c4452a-e450-5df4-818d-37972ba484a8",
                 "ipv6-addr--1294eac9-7974-5957-87d9-513d47202ebe"
             ],
-            "x_case_number": "CRISP-26-0test"
+            "x_case_number": "CRISP-26-2test"
         },
         {
             "type": "indicator",
@@ -200,7 +200,7 @@
             "pattern_type": "stix",
             "pattern_version": "2.1",
             "valid_from": "2026-02-05T19:25:06Z",
-            "x_case_number": "CRISP-26-0test"
+            "x_case_number": "CRISP-26-2test"
         },
         {
             "type": "relationship",
@@ -313,7 +313,7 @@
                 "file--99ac1f75-e921-5de7-bd21-bdd7f530c6db",
                 "file--7931da2a-c68e-5aa3-a533-81d237d53cf3"
             ],
-            "x_case_number": "CRISP-26-0test"
+            "x_case_number": "CRISP-26-3test"
         },
         {
             "type": "indicator",
@@ -327,7 +327,7 @@
             "pattern_type": "stix",
             "pattern_version": "2.1",
             "valid_from": "2026-02-05T19:25:06Z",
-            "x_case_number": "CRISP-26-0test"
+            "x_case_number": "CRISP-26-3test"
         },
         {
             "type": "relationship",
@@ -371,7 +371,7 @@
                 "url--2a9f9e59-d082-537a-a260-e63190cd8f79",
                 "url--ded60d2a-909a-5a94-b0d6-960a78f5a69b"
             ],
-            "x_case_number": "CRISP-26-0test"
+            "x_case_number": "CRISP-26-4test"
         },
         {
             "type": "indicator",
@@ -385,7 +385,7 @@
             "pattern_type": "stix",
             "pattern_version": "2.1",
             "valid_from": "2026-02-05T19:25:06Z",
-            "x_case_number": "CRISP-26-0test"
+            "x_case_number": "CRISP-26-4test"
         },
         {
             "type": "relationship",
@@ -422,7 +422,7 @@
                 "x-uri--621654da-2cbf-4852-855d-62b4913d4cec",
                 "x-uri--1d326657-dd8c-4078-abd6-95360c5f8bd9"
             ],
-            "x_case_number": "CRISP-26-0test"
+            "x_case_number": "CRISP-26-5test"
         },
         {
             "type": "indicator",
@@ -436,7 +436,7 @@
             "pattern_type": "stix",
             "pattern_version": "2.1",
             "valid_from": "2026-02-05T19:25:06Z",
-            "x_case_number": "CRISP-26-0test"
+            "x_case_number": "CRISP-26-5test"
         },
         {
             "type": "relationship",
