@@ -765,6 +765,8 @@ class FeedsController extends AppController
             return $this->__previewIndex($feed, $params);
         } elseif (in_array($feed['Feed']['source_format'], ['freetext', 'csv'], true)) {
             return $this->__previewFreetext($feed);
+        } elseif ($feed['Feed']['source_format'] === 'stix') {
+            return $this->__previewStix($feed);
         } else {
             throw new Exception("Invalid feed format `{$feed['Feed']['source_format']}`.");
         }
@@ -841,6 +843,42 @@ class FeedsController extends AppController
         $this->set('urlparams', $urlparams);
         $this->set('passedArgs', json_encode($passedArgs));
         $this->set('passedArgsArray', $passedArgs);
+    }
+
+    /**
+     * Preview a STIX feed: download, convert, and display as MISP events.
+     */
+    private function __previewStix(array $feed)
+    {
+        App::uses('SyncTool', 'Tools');
+        $syncTool = new SyncTool();
+        $HttpSocket = $syncTool->setupHttpSocketFeed();
+
+        try {
+            // Use Feed model to download and convert STIX feed (no import, just preview)
+            $converted = $this->Feed->downloadStixFeedForPreview($feed, $HttpSocket);
+        } catch (Exception $e) {
+            $this->Flash->error("Could not preview STIX feed: {$e->getMessage()}");
+            $this->redirect(array('controller' => 'feeds', 'action' => 'index'));
+        }
+
+        // $converted should be an array of MISP events
+        $events = $converted;
+
+        $this->set('events', $events);
+        $this->loadModel('Event');
+        $this->set('threatLevels', $this->Event->ThreatLevel->listThreatLevels());
+        $this->set('eventDescriptions', $this->Event->fieldDescriptions);
+        $this->set('analysisLevels', $this->Event->analysisLevels);
+        $this->set('distributionLevels', $this->Event->distributionLevels);
+        $shortDist = array(0 => 'Organisation', 1 => 'Community', 2 => 'Connected', 3 => 'All', 4 => ' sharing Group');
+        $this->set('shortDist', $shortDist);
+        $this->set('id', $feed['Feed']['id']);
+        $this->set('feed', $feed);
+        $this->set('urlparams', '');
+        $this->set('passedArgs', json_encode([]));
+        $this->set('passedArgsArray', []);
+        $this->render('preview_index');
     }
 
     private function __previewFreetext(array $feed)

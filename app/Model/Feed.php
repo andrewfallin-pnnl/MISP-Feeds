@@ -1344,6 +1344,92 @@ class Feed extends AppModel
     }
 
     /**
+     * Download and convert a STIX feed for preview (no import, just conversion).
+     *
+     * @param array $feed
+     * @param HttpSocket|null $HttpSocket
+     * @return array Array of converted MISP events
+     * @throws Exception
+     */
+    public function downloadStixFeedForPreview(array $feed, HttpSocket $HttpSocket = null)
+    {
+        // Determine STIX version from feed settings
+        $stixVersion = '2';
+        if (!empty($feed['Feed']['settings']['stix_version'])) {
+            $stixVersion = $feed['Feed']['settings']['stix_version'];
+        }
+
+        // Resolve the feed URL (handles directory → most recent file)
+        $feedUrl = $this->__resolveStixFeedPath($feed);
+        $data = $this->feedGetUri($feed, $feedUrl, $HttpSocket);
+
+        if (empty($data)) {
+            throw new Exception(__('Feed %s: STIX data is empty.', $feed['Feed']['id']));
+        }
+
+        // Keep a copy of raw STIX data for custom mapping (before we unset it)
+        $rawStixData = $data;
+
+        // Write STIX content to a temporary file for the converter
+        $tmpFile = FileAccessTool::createTempFile();
+        FileAccessTool::writeToFile($tmpFile, $data);
+        unset($data);
+
+        // Use Event model's convertStixToMisp to convert (do not import)
+        $this->Event = ClassRegistry::init('Event');
+        try {
+            $decoded = $this->Event->convertStixToMisp(
+                $stixVersion,
+                $tmpFile,
+                $feed['Feed']['distribution'],
+                $feed['Feed']['sharing_group_id'],
+                false, // forceContextualData
+                true, // galaxiesAsTags
+                0, // clusterDistribution
+                null, // clusterSharingGroupId
+                Configure::read('MISP.uuid') ?: 'no-uuid',
+                false // debug
+            );
+        } catch (Exception $e) {
+            FileAccessTool::deleteFileIfExists($tmpFile);
+            throw new Exception("STIX conversion failed for preview: " . $e->getMessage(), 0, $e);
+        }
+
+        FileAccessTool::deleteFileIfExists($tmpFile);
+
+        if (empty($decoded['success'])) {
+            $errorMsg = !empty($decoded['error']) ? $decoded['error'] : 'Unknown error during STIX conversion';
+            throw new Exception("STIX conversion failed for preview: $errorMsg");
+        }
+
+        $convertedData = JsonTool::decodeArray($decoded['converted']);
+
+        // Handle both single event and multiple events
+        $events = [];
+        if (isset($convertedData['Event'])) {
+            $events[] = $convertedData;
+        } elseif (isset($convertedData[0])) {
+            foreach ($convertedData as $item) {
+                if (isset($item['Event'])) {
+                    $events[] = $item;
+                } else {
+                    $events[] = ['Event' => $item];
+                }
+            }
+        } else {
+            $events[] = ['Event' => $convertedData];
+        }
+
+        // Apply custom STIX field mappings if configured
+        if (!empty($feed['Feed']['settings']['stix_custom_mapping'])) {
+            $this->__applyStixCustomMapping($events, $rawStixData, $feed['Feed']['settings']['stix_custom_mapping']);
+        }
+        unset($rawStixData);
+
+        return $events;
+    }
+
+    /**
      * Download and process a STIX feed, converting it to MISP events.
      *
      * @param array $feed
