@@ -2,36 +2,57 @@
 App::uses('AppController', 'Controller');
 
 /**
- * @property AdminCrudComponent $AdminCrud
+ * @property Allowedlist $Allowedlist
  */
 class AllowedlistsController extends AppController
 {
-    public $components = array(
-        'AdminCrud'
-    );
+    public $components = [
+        'CRUD',
+        'RequestHandler'
+    ];
 
-    public $paginate = array(
+    public $paginate = [
         'limit' => 60,
-        'order' => array(
+        'order' => [
             'Allowedlist.name' => 'ASC'
-        )
-    );
+        ]
+    ];
 
     public function admin_add()
     {
+        $this->CRUD->add();
+        if ($this->IndexFilter->isRest()) {
+            return $this->restResponsePayload;
+        }
+        if($this->theme === "Overmind"){
+            $this->layout = false;
+        }
         $this->set('action', 'add');
-        $this->AdminCrud->adminAdd();
     }
 
     public function admin_index()
     {
-        $this->AdminCrud->adminIndex();
+        $params = [
+            'filters' => ['name'],
+            'quickFilters' => ['name']
+        ];
+        $this->CRUD->index($params);
+        if ($this->IndexFilter->isRest()) {
+            return $this->restResponsePayload;
+        }
+        $this->set('list', $this->viewVars['data']);
         $this->render('index');
     }
 
     public function admin_edit($id = null)
     {
-        $this->AdminCrud->adminEdit($id);
+        $this->CRUD->edit($id);
+        if ($this->IndexFilter->isRest()) {
+            return $this->restResponsePayload;
+        }
+        if($this->theme === "Overmind"){
+            $this->layout = false;
+        }
         $this->set('action', 'edit');
         $this->set('id', $id);
         $this->render('admin_add');
@@ -39,12 +60,39 @@ class AllowedlistsController extends AppController
 
     public function admin_delete($id = null)
     {
-        $this->AdminCrud->adminDelete($id);
+        $this->CRUD->delete($id);
+        if ($this->IndexFilter->isRest()) {
+            return $this->restResponsePayload;
+        }
     }
+
+    public function admin_deleteSelection($id = null)
+    {
+        return $this->CRUD->deleteSelection($id, [
+            'modelName' => 'Allowedlist',
+            'restName' => 'Allowedlists',
+            'itemName' => 'allowedlist',
+            'view' => 'ajax/allowedlistDeleteConfirmationForm',
+            'checkModifyCallback' => function() {
+                return $this->userRole['perm_regexp_access'];
+            },
+            'multiSuccessMessageCallback' => function($count) {
+                return __n('%s allowedlist deleted.', '%s allowedlists deleted.', $count, $count);
+            }
+        ]);
+    }
+
 
     public function index()
     {
-        $this->recursive = 0;
-        $this->set('list', $this->paginate());
+        $params = [
+            'filters' => ['name'],
+            'quickFilters' => ['name']
+        ];
+        $this->CRUD->index($params);
+        if ($this->IndexFilter->isRest()) {
+            return $this->restResponsePayload;
+        }
+        $this->set('list', $this->viewVars['data']);
     }
 }
