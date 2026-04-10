@@ -94,22 +94,6 @@ echo $this->element('genericElements/Form/genericForm', [
                 'class' => 'form-control span6'
             ],
             [
-                'field' => 'fixed_event',
-                'label' => __('Target Event'),
-                'options' => [1 =>'Fixed Event', 0 => 'New Event Each Pull'],
-                'type' => 'dropdown',
-                'div' => ['id' => 'TargetDiv', 'style' => 'display:none', 'class' => 'optionalField'],
-                'class' => 'form-control span6'
-            ],
-            [
-                'field' => 'event_id',
-                'label' => __('Target Event ID'),
-                'placeholder' => __('Leave blank unless you want to reuse an existing event.'),
-                'div' => ['id' => 'TargetEventDiv', 'style' => 'display:none', 'class' => 'optionalField'],
-                'class' => 'form-control span6',
-                'required' => 0
-            ],
-            [
                 'field' => 'Feed.settings.csv.value',
                 'label' => __('Value field(s) in the CSV'),
                 'title' => __('Select one or several fields that should be parsed by the CSV parser and converted into MISP attributes'),
@@ -132,27 +116,6 @@ echo $this->element('genericElements/Form/genericForm', [
                 'div' => ['id' => 'settingsCommonExcluderegexDiv', 'style' => 'display:none', 'class' => 'optionalField'],
                 'placeholder' => __('Regex pattern, for example: "/^https://myfeedurl/i'),
                 'class' => 'form-control span6'
-            ],
-            [
-                'field' => 'publish',
-                'label' => __('Auto Publish'),
-                'title' => __('Publish events directly after pulling the feed - if you would like to review the event before publishing uncheck this'),
-                'type' => 'checkbox',
-                'div' => ['id' => 'PublishDiv', 'style' => 'display:none', 'class' => 'input checkbox optionalField']
-            ],
-            [
-                'field' => 'override_ids',
-                'label' => __('Override IDS Flag'),
-                'title' => __('If checked, the IDS flags will always be set to off when pulling from this feed'),
-                'type' => 'checkbox',
-                'div' => ['id' => 'OverrideIdsDiv', 'style' => 'display:none', 'class' => 'input checkbox optionalField']
-            ],
-            [
-                'field' => 'delta_merge',
-                'label' => __('Delta Merge'),
-                'title' => __('Merge attributes (only add new attributes, remove revoked attributes)'),
-                'type' => 'checkbox',
-                'div' => ['id' => 'DeltaMergeDiv', 'style' => 'display:none', 'class' => 'input checkbox optionalField']
             ],
             [
                 'field' => 'distribution',
@@ -243,18 +206,12 @@ if (!$ajax) {
             $form.append('<input type="hidden" name="data[Feed][settings][stix_custom_mapping]" id="FeedSettingsStixCustomMapping" value="">');
         }
 
-        // Move the custom mapping container into the form (above Auto Publish, below Target Event ID)
-        var $publishDiv = $('#PublishDiv');
-        if ($publishDiv.length) {
-            $('#stixCustomMappingContainer').insertBefore($publishDiv);
+        // Move the custom mapping container into the form (before the Distribution field)
+        var $distDiv = $('#FeedDistribution').closest('div.input, div.form-group');
+        if ($distDiv.length) {
+            $('#stixCustomMappingContainer').insertBefore($distDiv);
         } else {
-            // Fallback: before the Distribution field
-            var $distDiv = $('#FeedDistribution').closest('div.input, div.form-group');
-            if ($distDiv.length) {
-                $('#stixCustomMappingContainer').insertBefore($distDiv);
-            } else {
-                $form.append($('#stixCustomMappingContainer'));
-            }
+            $form.append($('#stixCustomMappingContainer'));
         }
 
         // "Add Custom STIX Mapping" button adds a new row each time it is clicked
@@ -294,7 +251,7 @@ if (!$ajax) {
         }
 
         feedFormUpdate();
-        $("#FeedSourceFormat, #FeedFixedEvent, #FeedInputSource, #FeedDistribution").change(function() {
+        $("#FeedSourceFormat, #FeedInputSource, #FeedDistribution").change(function() {
             feedFormUpdate();
         });
     });
