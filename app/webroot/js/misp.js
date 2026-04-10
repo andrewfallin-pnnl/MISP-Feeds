@@ -4464,14 +4464,7 @@ function feedFormUpdate() {
             $('#settingsCommonExcluderegexDiv').show();
             break;
         case 'stix':
-            $('#TargetDiv').show();
             $('#OrgcDiv').show();
-            $('#OverrideIdsDiv').show();
-            $('#PublishDiv').show();
-            if ($('#FeedTarget').val() != 0) {
-                $('#TargetEventDiv').show();
-                $('#DeltaMergeDiv').show();
-            }
             $('#stixCustomMappingContainer').show();
             break;
     }
