@@ -512,6 +512,9 @@ class AttributeValidationTool
                 return true;
             case 'link':
                 // Moved to a native function whilst still enforcing the scheme as a requirement
+                if (!preg_match('/^https?:\/\//i', $value)) {
+                    return false;
+                }
                 return (bool)filter_var($value, FILTER_VALIDATE_URL);
             case 'hex':
                 return ctype_xdigit($value);
@@ -571,8 +574,7 @@ class AttributeValidationTool
             case 'twitter-id':
             case 'dkim':
             case 'dkim-signature':
-            case 'favicon-mmh3':
-            case 'chrome-extension-id':
+            case 'favicon-mmh3':         
             case 'mobile-application-id':
             case 'azure-application-id':
             case 'named pipe':
@@ -636,6 +638,10 @@ class AttributeValidationTool
                 return __('AS number have to be integer between 1 and 4294967295');
             case 'uuid':
                 return preg_match('/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/', $value) === 1;
+            case 'chrome-extension-id':
+                return preg_match('/^[a-p]{32}$/', $value) === 1;
+            case 'edge-extension-id':
+                return preg_match('/^[a-p]{32}$/', $value) === 1;                   
         }
         throw new InvalidArgumentException("Unknown attribute type $type.");
     }

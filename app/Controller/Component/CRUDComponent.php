@@ -19,17 +19,30 @@ class CRUDComponent extends Component
     public function index(array $options)
     {
         $this->prepareResponse();
-        if (!empty($options['quickFilters'])) {
+        $quickFilterParameter = empty($options['quickFilterParameter']) ? 'quickFilter' : $options['quickFilterParameter'];
+        if (!empty($options[$quickFilterParameter])) {
             if (empty($options['filters'])) {
                 $options['filters'] = [];
             }
-            $options['filters'][] = 'quickFilter';
+            $options['filters'][] = $options[$quickFilterParameter];
         }
         $this->Controller->{$this->Controller->modelClass}->includeAnalystData = true;
+        $foundQuickFilter = false;
+        if (!empty($options['filters'])) {
+            foreach ($options['filters'] as $filter) {
+                if ($filter === $quickFilterParameter) {
+                    $foundQuickFilter = true;
+                    continue;
+                }
+            }
+            if (!$foundQuickFilter && !empty($options['quickFilters'])) {
+                $options['filters'][] = $quickFilterParameter;
+            }
+        }
         $params = $this->Controller->IndexFilter->harvestParameters(empty($options['filters']) ? [] : $options['filters']);
         $query = [];
-        $query = $this->setFilters($params, $query);
-        $query = $this->setQuickFilters($params, $query, empty($options['quickFilters']) ? [] : $options['quickFilters']);
+        $query = $this->setFilters($params, $query, $quickFilterParameter);
+        $query = $this->setQuickFilters($params, $query, empty($options['quickFilters']) ? [] : $options['quickFilters'], $quickFilterParameter);
         if (!empty($options['contain'])) {
             $query['contain'] = $options['contain'];
         }
@@ -330,6 +343,12 @@ class CRUDComponent extends Component
                     }
                     $this->Controller->redirect($this->Controller->referer($redirect));
                 }
+            } else {
+                if ($this->Controller->IndexFilter->isRest()) {
+                    $validationError = __('%s could not be deleted.', $modelName);
+                    $this->Controller->restResponsePayload = $this->Controller->RestResponse->saveFailResponse($modelName, 'delete', $id, $validationError);
+                    return;
+                }
             }
         }
         $this->Controller->set('validationError', $validationError);
@@ -339,11 +358,11 @@ class CRUDComponent extends Component
         $this->Controller->render('/genericTemplates/delete');
     }
 
-    public function setQuickFilters($params, array $query, $quickFilterFields)
+    public function setQuickFilters($params, array $query, $quickFilterFields, $quickFilterParameter = 'quickFilter')
     {
-        if (!empty($params['quickFilter']) && !empty($quickFilterFields)) {
+        if (!empty($params[$quickFilterParameter]) && !empty($quickFilterFields)) {
             $queryConditions = [];
-            $filter = '%' . strtolower($params['quickFilter']) . '%';
+            $filter = '%' . strtolower($params[$quickFilterParameter]) . '%';
             foreach ($quickFilterFields as $filterField) {
                 $queryConditions["LOWER($filterField) LIKE"] = $filter;
             }
@@ -352,13 +371,13 @@ class CRUDComponent extends Component
         return $query;
     }
 
-    public function setFilters(array $params, array $query)
+    public function setFilters(array $params, array $query, $quickFilterParameter = 'quickFilter')
     {
         // For CakePHP 2, we don't need to distinguish between simpleFilters and relatedFilters
         //$params = $this->massageFilters($params);
         if (!empty($params)) {
             foreach ($params as $filter => $filterValue) {
-                if ($filter === 'quickFilter') {
+                if ($filter === $quickFilterParameter) {
                     continue;
                 }
                 if (is_array($filterValue)) {
@@ -409,4 +428,107 @@ class CRUDComponent extends Component
         }
         return $massagedFilters;
     }
+
+    public function deleteSelection($id = null, array $options = [])
+    {
+        $this->prepareResponse();
+        $modelName = $options['modelName'] ?? $this->Controller->modelClass;
+        $restName = $options['restName'] ?? $modelName . 's';
+        $itemName = $options['itemName'] ?? strtolower($modelName);
+        $viewPath = $options['view'] ?? 'ajax/' . strtolower($modelName) . 'DeleteConfirmationForm';
+
+        $Model = $this->Controller->{$modelName};
+
+        if ($this->Controller->request->is(['post', 'put', 'delete'])) {
+            if (isset($this->Controller->request->data['id'])) {
+                $this->Controller->request->data[$modelName] = $this->Controller->request->data;
+            }
+            if (!isset($id) && isset($this->Controller->request->data[$modelName]['id'])) {
+                $idList = $this->Controller->request->data[$modelName]['id'];
+                if (!is_array($idList)) {
+                    if (is_numeric($idList) || Validation::uuid($idList)) {
+                        $idList = [$idList];
+                    } else {
+                        $idList = json_decode($idList, true);
+                    }
+                }
+                if (empty($idList)) {
+                    throw new NotFoundException(__('Invalid input.'));
+                }
+            } else {
+                $idList = [$id];
+            }
+            $successes = [];
+            $fails = [];
+            foreach ($idList as $cid) {
+                $item = $Model->find('first', [
+                    'conditions' => Validation::uuid($cid)
+                        ? [$modelName . '.uuid' => $cid]
+                        : [$modelName . '.id' => $cid],
+                    'recursive' => -1,
+                ]);
+                if (empty($item)) {
+                    $fails[] = $cid;
+                    continue;
+                }
+
+                $itemId = $item[$modelName]['id'];
+                $canModify = true;
+                if (isset($options['checkModifyCallback']) && is_callable($options['checkModifyCallback'])) {
+                    $canModify = call_user_func($options['checkModifyCallback'], $itemId, $item);
+                }
+
+                if (!$canModify) {
+                    $fails[] = $cid;
+                    continue;
+                }
+                if ($Model->delete($itemId)) {
+                    $successes[] = $cid;
+                } else {
+                    $fails[] = $cid;
+                }
+            }
+            if (count($idList) === 1) {
+                $message = empty($successes)
+                    ? __('%s was not deleted.', ucfirst($itemName))
+                    : __('%s deleted.', ucfirst($itemName));
+            } else {
+                $message = '';
+                if (!empty($successes)) {
+                    if (isset($options['multiSuccessMessageCallback']) && is_callable($options['multiSuccessMessageCallback'])) {
+                        $message .= call_user_func($options['multiSuccessMessageCallback'], count($successes));
+                    } else {
+                        $message .= count($successes) . ' ' . $itemName . '(s) deleted.';
+                    }
+                }
+                if (!empty($fails)) {
+                    $message .= ' ' . count($fails) . ' ' . $itemName . '(s) could not be deleted due to insufficient privileges or not found.';
+                }
+            }
+            if (isset($this->Controller->IndexFilter) && $this->Controller->IndexFilter->isRest()) {
+                if (!empty($successes)) {
+                    return $this->Controller->RestResponse->saveSuccessResponse(
+                        $restName, 'delete', $id, $this->Controller->response->type(), $message
+                    );
+                } else {
+                    return $this->Controller->RestResponse->saveFailResponse(
+                        $restName, 'delete', false, $message, $this->Controller->response->type()
+                    );
+                }
+            }
+            if (!empty($successes)) {
+                $this->Controller->Flash->success(trim($message));
+            } else {
+                $this->Controller->Flash->error(trim($message));
+            }
+            return $this->Controller->redirect(['action' => 'index']);
+        } else {
+            $itemList = is_numeric($id) ? [$id] : json_decode($id, true);
+            $this->Controller->request->data[$modelName]['id'] = json_encode($itemList);
+            $this->Controller->set('idArray', $itemList);
+            $this->Controller->layout = false;
+            return $this->Controller->render($viewPath);
+        }
+    }
+
 }
