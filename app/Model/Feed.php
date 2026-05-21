@@ -1355,6 +1355,73 @@ class Feed extends AppModel
      */
     public function downloadStixFeedForPreview(array $feed, HttpSocket $HttpSocket = null)
     {
+        $rawEvents = $this->__convertStixToRawEvents($feed, $HttpSocket);
+
+        // Reshape into UUID-keyed manifest format for preview_index.ctp
+        $events = [];
+        foreach ($rawEvents as $item) {
+            $e = $item['Event'] ?? [];
+            $uuid = !empty($e['uuid']) ? $e['uuid'] : RandomTool::random_str(false, 36);
+
+            $orgc = ['name' => 'Unknown'];
+            if (!empty($e['Orgc']['name'])) {
+                $orgc = $e['Orgc'];
+            } elseif (!empty($e['orgc']['name'])) {
+                $orgc = $e['orgc'];
+            } elseif (!empty($feed['Feed']['provider'])) {
+                $orgc = ['name' => $feed['Feed']['provider']];
+            }
+
+            $events[$uuid] = [
+                'uuid'           => $uuid,
+                'info'           => !empty($e['info']) ? $e['info'] : $feed['Feed']['name'],
+                'date'           => !empty($e['date']) ? $e['date'] : date('Y-m-d'),
+                'timestamp'      => !empty($e['timestamp']) ? $e['timestamp'] : time(),
+                'threat_level_id'=> isset($e['threat_level_id']) ? $e['threat_level_id'] : 4,
+                'analysis'       => isset($e['analysis']) ? $e['analysis'] : 0,
+                'distribution'   => isset($e['distribution']) ? $e['distribution'] : $feed['Feed']['distribution'],
+                'Orgc'           => $orgc,
+                'Tag'            => !empty($e['Tag']) ? $e['Tag'] : [],
+            ];
+        }
+
+        return $events;
+    }
+
+    /**
+     * Download and convert a STIX feed, returning the full MISP event matching
+     * the given UUID. Used by previewEvent for STIX feeds.
+     *
+     * @param array $feed
+     * @param string $uuid
+     * @param HttpSocket|null $HttpSocket
+     * @return array Full MISP event structure (['Event' => [...]])
+     * @throws Exception|NotFoundException
+     */
+    public function downloadStixEventForPreview(array $feed, $uuid, HttpSocket $HttpSocket = null)
+    {
+        $rawEvents = $this->__convertStixToRawEvents($feed, $HttpSocket);
+
+        foreach ($rawEvents as $item) {
+            if (!empty($item['Event']['uuid']) && $item['Event']['uuid'] === $uuid) {
+                return $item;
+            }
+        }
+
+        throw new NotFoundException(__('Event with UUID %s not found in STIX feed.', $uuid));
+    }
+
+    /**
+     * Download a STIX feed and convert it to an array of full MISP event
+     * structures (['Event' => [...]]), shared by the preview methods.
+     *
+     * @param array $feed
+     * @param HttpSocket|null $HttpSocket
+     * @return array
+     * @throws Exception
+     */
+    private function __convertStixToRawEvents(array $feed, HttpSocket $HttpSocket = null)
+    {
         $stixVersion = '2';
         if (!empty($feed['Feed']['settings']['stix_version'])) {
             $stixVersion = $feed['Feed']['settings']['stix_version'];
@@ -1400,7 +1467,6 @@ class Feed extends AppModel
 
         $convertedData = JsonTool::decodeArray($decoded['converted']);
 
-        // Normalise to array of events
         $rawEvents = [];
         if (isset($convertedData['Event'])) {
             $rawEvents[] = $convertedData;
@@ -1412,36 +1478,7 @@ class Feed extends AppModel
             $rawEvents[] = ['Event' => $convertedData];
         }
 
-        // Reshape into UUID-keyed manifest format for preview_index.ctp
-        $events = [];
-        foreach ($rawEvents as $item) {
-            $e = $item['Event'] ?? [];
-            $uuid = !empty($e['uuid']) ? $e['uuid'] : RandomTool::random_str(false, 36);
-
-            // Normalise Orgc
-            $orgc = ['name' => 'Unknown'];
-            if (!empty($e['Orgc']['name'])) {
-                $orgc = $e['Orgc'];
-            } elseif (!empty($e['orgc']['name'])) {
-                $orgc = $e['orgc'];
-            } elseif (!empty($feed['Feed']['provider'])) {
-                $orgc = ['name' => $feed['Feed']['provider']];
-            }
-
-            $events[$uuid] = [
-                'uuid'           => $uuid,
-                'info'           => !empty($e['info']) ? $e['info'] : $feed['Feed']['name'],
-                'date'           => !empty($e['date']) ? $e['date'] : date('Y-m-d'),
-                'timestamp'      => !empty($e['timestamp']) ? $e['timestamp'] : time(),
-                'threat_level_id'=> isset($e['threat_level_id']) ? $e['threat_level_id'] : 4,
-                'analysis'       => isset($e['analysis']) ? $e['analysis'] : 0,
-                'distribution'   => isset($e['distribution']) ? $e['distribution'] : $feed['Feed']['distribution'],
-                'Orgc'           => $orgc,
-                'Tag'            => !empty($e['Tag']) ? $e['Tag'] : [],
-            ];
-        }
-
-        return $events;
+        return $rawEvents;
     }
 
     /**

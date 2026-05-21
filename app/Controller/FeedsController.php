@@ -964,11 +964,26 @@ class FeedsController extends AppController
         if (empty($feed) || !$this->__canViewFeed($feed)) {
             throw new NotFoundException(__('Invalid feed.'));
         }
-        try {
-            $error_message = null;
-            $event = $this->Feed->downloadEventFromFeed($feed, $eventUuid, true, $error_message);
-        } catch (Exception $e) {
-            throw new Exception($e->getMessage(), 0, $e);
+        if ($feed['Feed']['source_format'] === 'stix') {
+            if (!empty($feed['Feed']['settings'])) {
+                $feed['Feed']['settings'] = json_decode($feed['Feed']['settings'], true);
+            }
+            $isLocal = isset($feed['Feed']['input_source']) && $feed['Feed']['input_source'] === 'local';
+            App::uses('SyncTool', 'Tools');
+            $syncTool = new SyncTool();
+            $HttpSocket = $isLocal ? null : $syncTool->setupHttpSocketFeed();
+            try {
+                $event = $this->Feed->downloadStixEventForPreview($feed, $eventUuid, $HttpSocket);
+            } catch (Exception $e) {
+                throw new Exception($e->getMessage(), 0, $e);
+            }
+        } else {
+            try {
+                $error_message = null;
+                $event = $this->Feed->downloadEventFromFeed($feed, $eventUuid, true, $error_message);
+            } catch (Exception $e) {
+                throw new Exception($e->getMessage(), 0, $e);
+            }
         }
         if ($this->_isRest()) {
             return $this->RestResponse->viewData($event, $this->response->type());
