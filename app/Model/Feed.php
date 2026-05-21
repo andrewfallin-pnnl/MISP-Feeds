@@ -1344,15 +1344,143 @@ class Feed extends AppModel
     }
 
     /**
-     * Download and process a STIX feed, converting it to MISP events.
+     * Download and convert a STIX feed for preview only (no import/save).
+     * Returns events shaped as a UUID-keyed array matching the manifest format
+     * expected by preview_index.ctp.
      *
      * @param array $feed
      * @param HttpSocket|null $HttpSocket
-     * @param array $user
-     * @param int|false $jobId
-     * @return bool
+     * @return array UUID-keyed array of event data
      * @throws Exception
      */
+    public function downloadStixFeedForPreview(array $feed, HttpSocket $HttpSocket = null)
+    {
+        $rawEvents = $this->__convertStixToRawEvents($feed, $HttpSocket);
+
+        // Reshape into UUID-keyed manifest format for preview_index.ctp
+        $events = [];
+        foreach ($rawEvents as $item) {
+            $e = $item['Event'] ?? [];
+            $uuid = !empty($e['uuid']) ? $e['uuid'] : RandomTool::random_str(false, 36);
+
+            $orgc = ['name' => 'Unknown'];
+            if (!empty($e['Orgc']['name'])) {
+                $orgc = $e['Orgc'];
+            } elseif (!empty($e['orgc']['name'])) {
+                $orgc = $e['orgc'];
+            } elseif (!empty($feed['Feed']['provider'])) {
+                $orgc = ['name' => $feed['Feed']['provider']];
+            }
+
+            $events[$uuid] = [
+                'uuid'           => $uuid,
+                'info'           => !empty($e['info']) ? $e['info'] : $feed['Feed']['name'],
+                'date'           => !empty($e['date']) ? $e['date'] : date('Y-m-d'),
+                'timestamp'      => !empty($e['timestamp']) ? $e['timestamp'] : time(),
+                'threat_level_id'=> isset($e['threat_level_id']) ? $e['threat_level_id'] : 4,
+                'analysis'       => isset($e['analysis']) ? $e['analysis'] : 0,
+                'distribution'   => isset($e['distribution']) ? $e['distribution'] : $feed['Feed']['distribution'],
+                'Orgc'           => $orgc,
+                'Tag'            => !empty($e['Tag']) ? $e['Tag'] : [],
+            ];
+        }
+
+        return $events;
+    }
+
+    /**
+     * Download and convert a STIX feed, returning the full MISP event matching
+     * the given UUID. Used by previewEvent for STIX feeds.
+     *
+     * @param array $feed
+     * @param string $uuid
+     * @param HttpSocket|null $HttpSocket
+     * @return array Full MISP event structure (['Event' => [...]])
+     * @throws Exception|NotFoundException
+     */
+    public function downloadStixEventForPreview(array $feed, $uuid, HttpSocket $HttpSocket = null)
+    {
+        $rawEvents = $this->__convertStixToRawEvents($feed, $HttpSocket);
+
+        foreach ($rawEvents as $item) {
+            if (!empty($item['Event']['uuid']) && $item['Event']['uuid'] === $uuid) {
+                return $item;
+            }
+        }
+
+        throw new NotFoundException(__('Event with UUID %s not found in STIX feed.', $uuid));
+    }
+
+    /**
+     * Download a STIX feed and convert it to an array of full MISP event
+     * structures (['Event' => [...]]), shared by the preview methods.
+     *
+     * @param array $feed
+     * @param HttpSocket|null $HttpSocket
+     * @return array
+     * @throws Exception
+     */
+    private function __convertStixToRawEvents(array $feed, HttpSocket $HttpSocket = null)
+    {
+        $stixVersion = '2';
+        if (!empty($feed['Feed']['settings']['stix_version'])) {
+            $stixVersion = $feed['Feed']['settings']['stix_version'];
+        }
+
+        $feedUrl = $this->__resolveStixFeedPath($feed);
+        $data = $this->feedGetUri($feed, $feedUrl, $HttpSocket);
+
+        if (empty($data)) {
+            throw new Exception(__('Feed %s: STIX data is empty.', $feed['Feed']['id']));
+        }
+
+        $tmpFile = FileAccessTool::createTempFile();
+        FileAccessTool::writeToFile($tmpFile, $data);
+        unset($data);
+
+        $this->Event = ClassRegistry::init('Event');
+
+        try {
+            $decoded = $this->Event->convertStixToMisp(
+                $stixVersion,
+                $tmpFile,
+                $feed['Feed']['distribution'],
+                $feed['Feed']['sharing_group_id'],
+                false,
+                true,
+                0,
+                null,
+                Configure::read('MISP.uuid') ?: 'no-uuid',
+                false
+            );
+        } catch (Exception $e) {
+            FileAccessTool::deleteFileIfExists($tmpFile);
+            throw new Exception("STIX conversion failed for preview: " . $e->getMessage(), 0, $e);
+        }
+
+        FileAccessTool::deleteFileIfExists($tmpFile);
+
+        if (empty($decoded['success'])) {
+            $errorMsg = !empty($decoded['error']) ? $decoded['error'] : 'Unknown error during STIX conversion';
+            throw new Exception("STIX conversion failed for preview: $errorMsg");
+        }
+
+        $convertedData = JsonTool::decodeArray($decoded['converted']);
+
+        $rawEvents = [];
+        if (isset($convertedData['Event'])) {
+            $rawEvents[] = $convertedData;
+        } elseif (isset($convertedData[0])) {
+            foreach ($convertedData as $item) {
+                $rawEvents[] = isset($item['Event']) ? $item : ['Event' => $item];
+            }
+        } else {
+            $rawEvents[] = ['Event' => $convertedData];
+        }
+
+        return $rawEvents;
+    }
+
     /**
      * Resolve a STIX feed URL/path to the actual file to process.
      * If the path points to a local directory, scan for STIX files and return
