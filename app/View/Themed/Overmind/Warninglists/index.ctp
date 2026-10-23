@@ -1,4 +1,35 @@
 <?php
+// Title of the index displayed in the header section, leaving it empty will fallback to controller name
+$headerTitle = __('');
+
+// Description displayed under the title in the header section, leave empty if not needed
+$headerDescription = __('');
+
+// Actions displayed as buttons in the header section, leave empty if not needed
+$headerActions = [];
+if ($this->Acl->canAccess('warninglists', 'update')) {
+    $headerActions[] = [
+        'type' => 'action',
+        'label' => __('Update Warninglists'),
+        'icon' => 'sync',
+        'url' => $baseurl . '/warninglists/update'
+    ];
+}
+
+if ($this->Acl->canAccess('warninglists', 'add')) {
+    $headerActions[] = [
+        'type' => 'modal',
+        'label' => __('Add Warninglist'),
+        'icon' => 'plus',
+        'url' => $baseurl . '/warninglists/add'
+    ];
+}
+$this->set('headerTitle', $headerTitle);
+$this->set('headerDescription', $headerDescription);
+$this->set('headerActions', $headerActions);
+
+
+
 /**
  * ==============================================================
  * Definition of fields displayed in the scaffold
@@ -31,48 +62,10 @@
 
 $fields = [
     [
-        'element' => 'selector',
+        'element' => 'checkbox',
         'data_path' => 'Warninglist.id',
         'enable_path' => 'Warninglist.enabled',
         'card_section' => 'selector',
-        'actions' => [
-            [
-                'type' => 'link',
-                'label' => __('View'),
-                'icon' => 'eye',
-                'url' => $baseurl . '/warninglists/view/%id%'
-            ],
-            [
-                'type' => 'ajax',
-                'label' => __('Edit'),
-                'icon' => 'pen-to-square',
-                'url' => $baseurl . '/warninglists/edit/%id%',
-                'requirement' => $me['Role']['perm_warninglist']
-            ],
-            [
-                'type' => 'ajax',
-                'label' => __('Delete'),
-                'icon' => 'trash',
-                'url' => $baseurl . '/warninglists/deleteSelection/%id%',
-                'class' => 'text-danger',
-                'requirement' => $me['Role']['perm_warninglist']
-            ],
-            [
-                'type' => 'divider',
-                'url' => '#',
-                'requirement' => $me['Role']['perm_warninglist']
-            ],
-            [
-                'type' => 'toggle',
-                'label_on' => __('Disable'),
-                'label_off' => __('Enable'),
-                'icon_on' => 'stop',
-                'icon_off' => 'play',
-                'url' => $baseurl . '/warninglists/toggleEnable/%id%', 
-                'enable_path' => 'Warninglist.enabled',
-                'requirement' => $me['Role']['perm_warninglist']
-            ]
-        ]
     ],
     [
         'name' => __('ID'),
@@ -85,8 +78,9 @@ $fields = [
     ],
     [
         'name' => __('Name'),
-        'data_path' => 'Warninglist',
-        'element' => 'warninglist_name',
+        'sort' => 'Warninglist.name',
+        'data_path' => 'Warninglist.name, Warninglist.description',
+        'element' => 'name_description',
         'card_section' => 'title',
         'display_in' => ['table', 'card']
     ],
@@ -94,7 +88,7 @@ $fields = [
         'name' => __('Version'),
         'data_path' => 'Warninglist.version',
         'element' => 'version',
-        'card_section' => 'extra',
+        'card_section' => 'top',
         'display_in' => ['table', 'card']
     ],
     [
@@ -133,31 +127,81 @@ $fields = [
         'name' => __('Entries'),
         'data_path' => 'Warninglist.warninglist_entry_count',
         'element' => 'count',
-        'card_section' => 'extra',
+        'card_section' => 'top',
         'display_in' => ['table', 'card']
+    ],
+    [
+        'name' => __('Actions'),
+        'element' => 'row_actions',
+        'data_path' => 'Warninglist.id',
+        'enable_path' => 'Warninglist.enabled',
+        'card_section' => 'extra',
+        'actions' => [
+            [
+                'type' => 'navigate',
+                'label' => __('View'),
+                'icon' => 'eye',
+                'url' => $baseurl . '/warninglists/view/%id%'
+            ],
+            [
+                'type' => 'modal',
+                'label' => __('Edit'),
+                'icon' => 'pen-to-square',
+                'url' => $baseurl . '/warninglists/edit/%id%',
+                'requirement' => function ($row) use ($me) {
+                    return $me['Role']['perm_warninglist'] && !$row['Warninglist']['default'];
+                }
+            ],
+            [
+                'type' => 'modal',
+                'label' => __('Delete'),
+                'icon' => 'trash',
+                'url' => $baseurl . '/warninglists/deleteSelection/%id%',
+                'class' => 'text-danger',
+                'requirement' => $me['Role']['perm_warninglist']
+            ],
+            [
+                'type' => 'divider',
+                'url' => '#',
+                'requirement' => $me['Role']['perm_warninglist']
+            ],
+            [
+                'type' => 'toggle',
+                'label_on' => __('Disable'),
+                'label_off' => __('Enable'),
+                'icon_on' => 'stop',
+                'icon_off' => 'play',
+                'url' => $baseurl . '/warninglists/toggleEnable/%id%', 
+                'enable_path' => 'Warninglist.enabled',
+                'requirement' => $me['Role']['perm_warninglist']
+            ]
+        ]
     ]
 ];
 
-
-$headerActions = [];
-if ($this->Acl->canAccess('warninglists', 'update')) {
-    $headerActions[] = [
-        'type' => 'post',
-        'label' => __('Update Warninglists'),
-        'icon' => 'sync',
-        'url' => $baseurl . '/warninglists/update'
+/**
+ * When a value search is active, show what actually matched inside each list
+ * (`$matchValues` / `Warninglist.value_matches` are set by the controller).
+ */
+if (!empty($matchValues)) {
+    $matchField = [
+        'name' => __('Matched'),
+        'data_path' => 'Warninglist.value_matches',
+        'element' => 'warninglist_matches',
+        'show_searched' => count($matchValues) > 1,
+        'card_section' => 'attribute',
+        'display_in' => ['table', 'card']
     ];
+    $insertAt = count($fields);
+    foreach ($fields as $index => $field) {
+        if (($field['element'] ?? '') === 'name_description') {
+            $insertAt = $index + 1;
+            break;
+        }
+    }
+    array_splice($fields, $insertAt, 0, [$matchField]);
 }
 
-if ($this->Acl->canAccess('warninglists', 'add')) {
-    $headerActions[] = [
-        'type' => 'ajax',
-        'label' => __('Add Warninglist'),
-        'icon' => 'plus',
-        'url' => $baseurl . '/warninglists/add'
-    ];
-}
-$this->set('headerActions', $headerActions);
 
 /**
  * ==============================================================
@@ -176,6 +220,7 @@ echo $this->element('genericElementsBS5/IndexTable/scaffold', [
     'scaffold_data' => [
         'data' => [
             'data' => $warninglists,
+            'cards_per_row' => ['' => 1, 'lg' => 2, 'xxxxl' => 3],
             'filter_bar' => [
                 'pull' => 'right',
                 'children' => [
@@ -185,6 +230,15 @@ echo $this->element('genericElementsBS5/IndexTable/scaffold', [
                         'placeholder' => 'Search by warninglist name',
                         'name'        => 'value',
                         'mode'        => 'legacy',
+                    ],
+                    [
+                        'type' => 'value_match',
+                        'name' => 'matchValue',
+                        'label' => __('Search a value'),
+                        'chip_label' => __('Value match'),
+                        'icon' => 'fas fa-crosshairs',
+                        'placeholder' => __('8.8.8.8, example.com || example.eu'),
+                        'hint' => __('Searches the entries of the enabled warninglists. Several values: a||b'),
                     ],
                     [
                         'type' => 'more_filters',
@@ -229,6 +283,8 @@ echo $this->element('genericElementsBS5/IndexTable/scaffold', [
                 'delete' => '/deleteSelection'
             ],
             'fields' => $fields,
+            'primary_id_path' => 'Warninglist.id',
+            'row_dblclick_url' => $baseurl . '/warninglists/view/%id%',
         ]
     ],
     'item_url' => '/warninglists'

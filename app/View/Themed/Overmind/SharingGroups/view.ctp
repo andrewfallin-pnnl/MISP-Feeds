@@ -1,12 +1,15 @@
 <?php
-    echo $this->element('genericElementsBS5/Layout/view_layout',
+
+$this->set('headerTitle', $sg['SharingGroup']['name']);
+
+echo $this->element('genericElementsBS5/Layout/view_layout',
     [
         'data' => $sg,
         'tabs' => [
             [
                 'id' => 'general',
                 'title' => __('General'),
-                'icon' => 'info-circle',
+                'icon' => 'fas fa-info-circle',
 
                 // Content
                 'left' => [
@@ -14,6 +17,7 @@
                 ],
                 'right' => [
                     'SharingGroups/View/sharingGroups_actions',
+                    'SharingGroups/View/sharingGroups_analyst_data',
                 ]
             ]
         ]

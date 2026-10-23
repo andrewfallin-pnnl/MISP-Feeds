@@ -69,7 +69,15 @@ OPENSSL_EMAILADDRESS='misp@'${MISP_DOMAIN}
 # Some helper functions shamelessly copied from @da667's automisp install script.
 
 logfile=/var/log/misp_install.log
-mkfifo ${logfile}.pipe
+# Everything this script prints and every setting it writes ends up in here -
+# the generated admin password, the database passwords, the GPG passphrase and
+# the supervisor password among them - so the log gets the same treatment as
+# /root/misp_settings.txt: root only, from the moment it exists. The file is
+# removed first so the mode is never applied through a symlink left in /var/log,
+# and the FIFO is created restricted too, since it carries the same stream.
+rm -f "$logfile"
+install -m 0600 /dev/null "$logfile"
+mkfifo -m 0600 ${logfile}.pipe
 tee < ${logfile}.pipe $logfile &
 exec &> ${logfile}.pipe
 rm ${logfile}.pipe
@@ -392,7 +400,7 @@ print_status "Creating Apache configuration file for MISP..."
           ServerAdmin admin@$MISP_DOMAIN
           ServerName $MISP_DOMAIN
 
-          Redirect permanent / https://$MISP_DOMAIN
+          Redirect permanent / https://$MISP_DOMAIN/
 
           LogLevel warn
           ErrorLog /var/log/apache2/misp.local_error.log
@@ -685,7 +693,7 @@ error_check "Background workers setup"
   sudo -u ${APACHE_USER} ${MISP_PATH}/app/Console/cake Admin setSetting "Security.self_registration_message" "If you would like to send us a registration request, please fill out the form below. Make sure you fill out as much information as possible in order to ease the task of the administrators." &>> $logfile
 
   # Appease the security audit, #hardening
-  sudo -u ${APACHE_USER} ${MISP_PATH}/app/Console/cake Admin setSetting "Security.disable_browser_cache" true &>> $logfile
+  sudo -u ${APACHE_USER} ${MISP_PATH}/app/Console/cake Admin setSetting "Security.disable_browser_cache" false &>> $logfile
   sudo -u ${APACHE_USER} ${MISP_PATH}/app/Console/cake Admin setSetting "Security.check_sec_fetch_site_header" true &>> $logfile
   sudo -u ${APACHE_USER} ${MISP_PATH}/app/Console/cake Admin setSetting "Security.csp_enforce" true &>> $logfile
   sudo -u ${APACHE_USER} ${MISP_PATH}/app/Console/cake Admin setSetting "Security.advanced_authkeys" true &>> $logfile

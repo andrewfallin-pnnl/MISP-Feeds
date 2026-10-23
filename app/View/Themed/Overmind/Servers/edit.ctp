@@ -13,21 +13,15 @@ echo $this->Form->create('Server', [
 
 ?>
 
-<div class="container">
+<?= $this->element('genericElementsBS5/Forms/modal_header', [
+    'eyebrow' => __('Servers'),
+    'title' => $edit ? __('Edit Server') : __('Add Server'),
+    'description' => __('Configure remote instance connection, ownership and synchronisation options.'),
+    'icon' => 'fas fa-server',
+    'isEdit' => $edit,
+]) ?>
 
-    <div class="row justify-content-center">
-
-        <div class="card shadow-sm">
-
-            <div class="card-body">
-
-                <h3 class="mb-2">
-                    <?= $edit ? __('Edit current Server') : __('Create New Server') ?>
-                </h3>
-
-                <p class="text-muted mb-4">
-                    <?= __('Configure remote instance connection, ownership and synchronisation options.') ?>
-                </p>
+<div class="container-fluid px-4 py-4">
 
                 <div class="accordion" id="sgAccordion">
                     <!-- ===================== STEP 1 : GENERAL ===================== -->
@@ -218,7 +212,7 @@ echo $this->Form->create('Server', [
                             </div>
                         </div>
                     </div>
-                    
+
 
                     <!-- ===================== STEP 4 : Misc Settings ===================== -->
                     <div class="accordion-item border mb-2 rounded shadow-sm">
@@ -361,7 +355,7 @@ echo $this->Form->create('Server', [
                             class="accordion-collapse collapse"
                             aria-labelledby="sgHeading5"
                             data-bs-parent="#sgAccordion">
-                            
+
                             <div class="accordion-body">
                                 <ul class="nav nav-tabs mb-4" id="syncRulesTabs" role="tablist">
                                     <li class="nav-item" role="presentation">
@@ -405,10 +399,10 @@ echo $this->Form->create('Server', [
                                         $decoded = json_decode($server['Server']['pull_rules'], true);
                                         if (is_array($decoded)) $existingRules['pull'] = $decoded;
                                     }
-                                    
+
                                     // Mapping table for listType → key in the stored JSON
                                     $listTypeToKey = ['allowedlist' => 'OR', 'blockedlist' => 'NOT'];
-                                    
+
                                     $syncRuleSections = [
                                         'push' => [__('Push rules'), __('Configure the rules to be applied when PUSHing data to the server')],
                                         'pull' => [__('Pull rules'), __('Configure the rules to be applied when PULLing data from the server')],
@@ -635,7 +629,7 @@ echo $this->Form->create('Server', [
                                                     <div class="row g-3">
                                                         <div class="col-12 col-lg-6">
                                                             <label class="form-label fw-semibold">
-                                                                <i class="fas fa-cube me-1 text-muted"></i>
+                                                                <span class="misp-icon misp-icon-attribute misp-simple me-1 text-muted"></span>
                                                                 <?= __('Attribute types to block') ?>
                                                             </label>
                                                             <?= $this->Form->select(
@@ -661,7 +655,7 @@ echo $this->Form->create('Server', [
 
                                                         <div class="col-12 col-lg-6">
                                                             <label class="form-label fw-semibold">
-                                                                <i class="fas fa-cubes me-1 text-muted"></i>
+                                                                <span class="misp-icon misp-icon-object misp-simple me-1 text-muted"></span>
                                                                 <?= __('Object types to block') ?>
                                                             </label>
                                                             <?= $this->Form->select(
@@ -701,36 +695,35 @@ echo $this->Form->create('Server', [
                     </div>
                 </div>
 
-                <!-- Actions -->
-                <div class="d-flex justify-content-end gap-3">
-                    <button type="button"
-                            class="btn btn-outline-secondary"
-                            data-bs-dismiss="modal">
-                        <?= __('Cancel') ?>
-                    </button>
-                    <?= $this->Form->button(
-                        '<i class="fas fa-check me-1"></i> ' . ($edit ? __('Edit server') : __('Add server')),
-                        [
-                            'class' => 'btn btn-primary',
-                            'onClick' => $edit ? "serverSubmitForm('Edit')" : "serverSubmitForm('Add')",
-                            'escapeTitle' => false,
-                            'title' => $edit ? __('Edit server') : __('Add server'),
-                            'aria-label' => $edit ? __('Edit server') : __('Add server'),
-                        ]
-                    ) ?>
-                </div>
+    <?php
+    $footerMeta = [];
+    if ($edit && !empty($server['Server']['id'])) {
+        $footerMeta[] = ['label' => __('Server'), 'id' => $server['Server']['id']];
+        if (!empty($server['Server']['url'])) {
+            $footerMeta[] = ['value' => $server['Server']['url'], 'mono' => true];
+        }
+    }
+    echo $this->element('genericElementsBS5/Forms/modal_footer', [
+        'isEdit' => $edit,
+        'meta' => $footerMeta,
+        'hint' => __('Connection settings can be tested from the server index once saved.'),
+        /* serverSubmitForm() packs the org choice and the sync rules into their
+         * hidden JSON fields, then submits the form itself. */
+        'submit' => [
+            'label' => $edit ? __('Save Changes') : __('Add Server'),
+            'attrs' => ['onclick' => sprintf("serverSubmitForm('%s')", $edit ? 'Edit' : 'Add')],
+        ],
+    ]);
+    ?>
 
-                <?php
-                    echo $this->Form->input('push_rules', array('style' => 'display:none;', 'label' => false, 'div' => false));
-                    echo $this->Form->input('pull_rules', array('style' => 'display:none;', 'label' => false, 'div' => false));
-                    echo $this->Form->input('json', array('style' => 'display:none;', 'label' => false, 'div' => false));
-                    echo $this->Form->checkbox('delete_cert', array('style' => 'display:none;', 'label' => false, 'div' => false));
-                    echo $this->Form->checkbox('delete_client_cert', array('style' => 'display:none;', 'label' => false, 'div' => false));
-                ?>
-            </div>
-        </div>
-
-        <?= $this->Form->end(); ?>
-    </div>
+    <?php
+        echo $this->Form->input('push_rules', array('style' => 'display:none;', 'label' => false, 'div' => false));
+        echo $this->Form->input('pull_rules', array('style' => 'display:none;', 'label' => false, 'div' => false));
+        echo $this->Form->input('json', array('style' => 'display:none;', 'label' => false, 'div' => false));
+        echo $this->Form->checkbox('delete_cert', array('style' => 'display:none;', 'label' => false, 'div' => false));
+        echo $this->Form->checkbox('delete_client_cert', array('style' => 'display:none;', 'label' => false, 'div' => false));
+    ?>
 </div>
+
+<?= $this->Form->end(); ?>
 

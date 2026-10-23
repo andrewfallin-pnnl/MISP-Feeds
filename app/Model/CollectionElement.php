@@ -49,6 +49,17 @@ class CollectionElement extends AppModel
         ]
     ];
 
+    /**
+     * When true, element saves/deletes do NOT bump the parent Collection's
+     * `modified`. Set during sync capture, where the parent's `modified` is
+     * set authoritatively from the remote by Collection::captureCollection().
+     * @var bool
+     */
+    public $skipCollectionModifiedBump = false;
+
+    /** @var int|null parent collection_id stashed in beforeDelete for afterDelete */
+    private $deletedElementCollectionId = null;
+
 
     public function beforeValidate($options = array())
     {
@@ -71,59 +82,52 @@ class CollectionElement extends AppModel
         return true;
     }
 
-    public function mayModify(int $user_id, int $collection_id)
+    public function afterSave($created, $options = array())
     {
-        $user = $this->User->getAuthUser($user_id);
-        $collection = $this->find('first', [
-            'recursive' => -1,
-            'conditions' => ['Collection.id' => $collection_id]
-        ]);
-        if ($user['Role']['perm_site_admin']) {
-            return true;
+        parent::afterSave($created, $options);
+        if ($this->skipCollectionModifiedBump) {
+            return;
         }
-        if (empty($user['Role']['perm_modify'])) {
-            return false;
+        $collectionId = $this->data['CollectionElement']['collection_id'] ?? null;
+        if (empty($collectionId) && !empty($this->id)) {
+            $collectionId = $this->field('collection_id', ['CollectionElement.id' => $this->id]);
         }
-        if (!empty($user['Role']['perm_modify_org'])) {
-            if ($user['org_id'] == $collection['Collection']['orgc_id']) {
-                return true;
-            }
-            if ($user['Role']['perm_sync'] && $user['org_id'] == $collection['Collection']['org_id']) {
-                return true;
-            }            
-        }
-        if (!empty($user['Role']['perm_modify']) && $user['id'] === $collection['Collection']['user_id']) {
-            return true;
-        }
-        return false;
+        $this->touchCollection($collectionId);
     }
 
-    public function mayView(int $user_id, int $collection_id)
+    public function beforeDelete($cascade = true)
     {
-        $user = $this->User->getAuthUser($user_id);
-        $collection = $this->find('first', [
-            'recursive' => -1,
-            'conditions' => ['Collection.id' => $collection_id]
-        ]);
-        if ($user['Role']['perm_site_admin']) {
-            return true;
+        // The row is gone by afterDelete, so stash the parent collection_id now.
+        $this->deletedElementCollectionId = $this->field('collection_id', ['CollectionElement.id' => $this->id]);
+        return true;
+    }
+
+    public function afterDelete()
+    {
+        parent::afterDelete();
+        $collectionId = $this->deletedElementCollectionId;
+        $this->deletedElementCollectionId = null;
+        if ($this->skipCollectionModifiedBump) {
+            return;
         }
-        if ($collection['Collection']['org_id'] == $user['org_id']) {
-            return true;
+        $this->touchCollection($collectionId);
+    }
+
+    /**
+     * Bump the parent Collection's `modified` so element-only edits are visible
+     * to {uuid: modified} sync dedup (D5). updateAll avoids callbacks/validation
+     * and harmlessly affects zero rows if the parent no longer exists (e.g. a
+     * cascading Collection delete). Skipped during sync capture (see the flag).
+     */
+    private function touchCollection($collectionId)
+    {
+        if (empty($collectionId)) {
+            return;
         }
-        if (in_array($collection['Collection']['distribution'], [1,2,3])) {
-            return true;
-        }
-        if ($collection['Collection']['distribution'] === 4) {
-            $SharingGroup = ClassRegistry::init('SharingGroup');
-            $sgs = $this->SharingGroup->fetchAllAuthorised($user, 'uuid');
-            if (isset($sgs[$collection['Collection']['sharing_group_id']])) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-        return false;
+        $this->Collection->updateAll(
+            ['Collection.modified' => "'" . date('Y-m-d H:i:s') . "'"],
+            ['Collection.id' => $collectionId]
+        );
     }
 
     public function deduceType(string $uuid)
@@ -146,6 +150,11 @@ class CollectionElement extends AppModel
      *  The received object is authoritative, so all elements that no longer exist in the upstream will be culled.
      */
     public function captureElements($data) {
+        // Sync capture: the parent Collection's `modified` is set authoritatively
+        // from the remote by Collection::captureCollection(), so element saves/
+        // deletes here must NOT bump it to the local now (D5 / D6 dedup).
+        $this->skipCollectionModifiedBump = true;
+        try {
         $temp = $this->find('all', [
             'recursive' => -1,
             'conditions' => ['CollectionElement.collection_id' => $data['Collection']['id']]
@@ -170,9 +179,9 @@ class CollectionElement extends AppModel
                     $elementsToSave[$k] = [
                         'CollectionElement' => [
                             'uuid' => $element['uuid'],
-                            'element_uuid' => $element['element_uuid'],
-                            'element_type' => $element['element_type'],
-                            'description' => $element['description'],
+                            'element_uuid' => $element['element_uuid'] ?? null,
+                            'element_type' => $element['element_type'] ?? null,
+                            'description' => $element['description'] ?? null,
                             'collection_id' => $data['Collection']['id']
                         ]
                     ];
@@ -183,10 +192,28 @@ class CollectionElement extends AppModel
                 if (empty($element['CollectionElement']['id'])) {
                     $this->create();
                 }
-                try{
-                    $this->save($element);
+                try {
+                    if (!$this->save($element)) {
+                        $this->log(
+                            sprintf(
+                                'Could not save CollectionElement %s for collection %s: %s',
+                                $element['CollectionElement']['uuid'] ?? '',
+                                $data['Collection']['id'],
+                                json_encode($this->validationErrors)
+                            ),
+                            LOG_WARNING
+                        );
+                    }
                 } catch (PDOException $e) {
-                    // duplicate value?
+                    $this->log(
+                        sprintf(
+                            'Could not save CollectionElement %s for collection %s: %s',
+                            $element['CollectionElement']['uuid'] ?? '',
+                            $data['Collection']['id'],
+                            $e->getMessage()
+                        ),
+                        LOG_WARNING
+                    );
                 }
             }
             foreach ($oldElements as $toDelete) {
@@ -201,7 +228,9 @@ class CollectionElement extends AppModel
                 $data['Collection']['CollectionElement'][] = $element['CollectionElement'];
             }
         }
-
+        } finally {
+            $this->skipCollectionModifiedBump = false;
+        }
         return $data;
     }
 }

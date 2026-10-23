@@ -6,7 +6,7 @@
             [
                 'id' => 'general',
                 'title' => __('General'),
-                'icon' => 'info-circle',
+                'icon' => 'fas fa-info-circle',
 
                 // Content
                 'left' => [
@@ -19,12 +19,12 @@
             [
                 'id' => 'elements',
                 'title' => __('Elements'),
-                'icon' => 'cube',
+                'icon' => 'fas fa-cube',
 
                 // Content
                 'left' => [
                     [
-                        'ajax' => sprintf('/objectTemplateElements/viewElements/%s/all', h($data['ObjectTemplate']['id']))
+                        'ajax' => sprintf('%s/objectTemplateElements/viewElements/%s/all', $baseurl, h($data['ObjectTemplate']['id']))
                     ]
                 ],
             ]

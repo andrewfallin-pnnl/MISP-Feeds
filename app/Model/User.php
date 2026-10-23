@@ -20,6 +20,8 @@ App::uses('BlowfishConstantPasswordHasher', 'Controller/Component/Auth');
 class User extends AppModel
 {
     private const PERIODIC_USER_SETTING_KEY = 'periodic_notification_filters';
+    private const GPG_PUBLIC_KEY_CACHE_KEY = 'misp:instance_gpg_public_key';
+    private const GPG_PUBLIC_KEY_CACHE_TTL = 180;
     public const PERIODIC_NOTIFICATIONS = ['notification_daily', 'notification_weekly', 'notification_monthly'];
 
     public $displayField = 'email';
@@ -217,7 +219,6 @@ class User extends AppModel
             'finderQuery' => '',
             'counterQuery' => ''
         ),
-        'Post',
         'UserSetting',
         'UserLoginProfile'
         // 'AuthKey' - readd once the initial update storm is over
@@ -249,6 +250,29 @@ class User extends AppModel
 
     /** @var CryptGpgExtended|null|false */
     private $gpg;
+
+    /**
+     * Whether $user may be shown other users' e-mail addresses.
+     *
+     * Site admins always may; everyone else only on an instance that has
+     * opted in with `Security.disclose_user_emails` (default off, and
+     * described as "allow for the user e-mail addresses to be shown to
+     * non site-admin users"). Static so the dashboard widgets, which hold
+     * an auth-user array rather than a model instance, can share it -
+     * NewUsersWidget and UserContributionToplistWidget each carried their
+     * own copy of this expression, and DashboardsController::listTemplates
+     * carried a fourth, different rule that was gated on the render mode.
+     *
+     * @param array $user An auth user array.
+     * @return bool
+     */
+    public static function canSeeEmails(array $user)
+    {
+        if (!empty($user['Role']['perm_site_admin'])) {
+            return true;
+        }
+        return !empty(Configure::read('Security.disclose_user_emails'));
+    }
 
     public function __construct($id = false, $table = null, $ds = null)
     {
@@ -793,7 +817,7 @@ class User extends AppModel
     }
 
     /**
-     * Fetch all users that have access to an event / discussion for e-mailing (or maybe something else in the future.
+     * Fetch all users that have access to an event for e-mailing (or maybe something else in the future.
      * parameters are an array of org IDs that are owners (for an event this would be orgc and org)
      * @param array $owners Event owners
      * @param int $distribution
@@ -1012,6 +1036,13 @@ class User extends AppModel
                 'fields' => array('User.id', 'User.email', 'User.org_id')
             ));
         }
+        // With neither an org admin nor a site admin on the instance both finds
+        // come back empty, and the caller tests isset($admin['email']) - so
+        // return the shape it expects rather than reading a key off an empty
+        // array.
+        if (empty($admin['User'])) {
+            return array();
+        }
 
         return $admin['User'];
     }
@@ -1115,6 +1146,38 @@ class User extends AppModel
                 'User.id', 'User.email'
             )
         ));
+    }
+
+    /**
+     * Role IDs that grant site admin privileges.
+     * @return array
+     */
+    public function getSiteAdminRoleIds()
+    {
+        return $this->Role->find('column', array(
+            'conditions' => array('Role.perm_site_admin' => 1),
+            'fields' => array('Role.id')
+        ));
+    }
+
+    /**
+     * Whether the given user ID belongs to a site admin. Unlike getSiteAdmins(),
+     * this deliberately ignores the disabled flag: a disabled site admin must
+     * still be protected from lower-privileged (org) admins.
+     * @param int $userId
+     * @return bool
+     */
+    public function isUserSiteAdmin($userId)
+    {
+        if (empty($userId)) {
+            return false;
+        }
+        $target = $this->find('first', array(
+            'recursive' => -1,
+            'conditions' => array('User.id' => $userId),
+            'contain' => array('Role' => array('fields' => array('perm_site_admin')))
+        ));
+        return !empty($target['Role']['perm_site_admin']);
     }
 
     public function verifyPassword($user_id, $password)
@@ -1364,20 +1427,54 @@ class User extends AppModel
     }
 
     /**
+     * Instance public key, cached in redis to avoid a gnupg export on every
+     * request - the endpoint serving it is reachable unauthenticated.
+     *
      * @return array|null
      * @throws Exception
      */
     public function getGpgPublicKey()
     {
+        try {
+            $redis = RedisTool::init();
+        } catch (Exception $e) {
+            $redis = false;
+        }
+        if ($redis) {
+            try {
+                $cached = $redis->get(self::GPG_PUBLIC_KEY_CACHE_KEY);
+                if (!empty($cached)) {
+                    $cached = RedisTool::deserialize($cached);
+                    if (is_array($cached) && count($cached) === 2) {
+                        return $cached;
+                    }
+                }
+            } catch (Exception $e) {
+                // Cached value could not be fetched or read, generate it again
+            }
+        }
+
         $cryptGpg = $this->initializeGpg();
-        $this->CryptoGraphicKey = ClassRegistry::init('CrytpographicKey');
+        $this->CryptoGraphicKey = ClassRegistry::init('CryptographicKey');
         $fingerprint = $this->CryptoGraphicKey->ingestInstanceKey();
         if (!$fingerprint) {
             return null;
         }
 
         $publicKey = $cryptGpg->exportPublicKey($fingerprint);
-        return array($fingerprint, $publicKey);
+        $key = array($fingerprint, $publicKey);
+        if ($redis) {
+            try {
+                $redis->setex(
+                    self::GPG_PUBLIC_KEY_CACHE_KEY,
+                    self::GPG_PUBLIC_KEY_CACHE_TTL,
+                    RedisTool::serialize($key)
+                );
+            } catch (Exception $e) {
+                // Caching the key is best effort only
+            }
+        }
+        return $key;
     }
 
     public function getOrgActivity($orgId, $params=array())
@@ -2243,11 +2340,8 @@ class User extends AppModel
                 'perm_tagger' => 1,
             ]];
             $this->Role->save($siteAdmin);
-            // PostgreSQL: update value of auto incremented serial primary key after setting the column by force
-            if (!$this->isMysql()) {
-                $sql = "SELECT setval('roles_id_seq', (SELECT MAX(id) FROM roles));";
-                $this->Role->query($sql);
-            }
+            // The id was set by force above, so the sequence has to catch up.
+            $this->Role->resetAutoIncrement();
         }
 
         if (!$this->Organisation->hasAny(['Organisation.local' => true])) {
@@ -2261,11 +2355,8 @@ class User extends AppModel
                 'local' => 1,
             ]];
             $this->Organisation->save($org);
-            // PostgreSQL: update value of auto incremented serial primary key after setting the column by force
-            if (!$this->isMysql()) {
-                $sql = "SELECT setval('organisations_id_seq', (SELECT MAX(id) FROM organisations));";
-                $this->Organisation->query($sql);
-            }
+            // The id was set by force above, so the sequence has to catch up.
+            $this->Organisation->resetAutoIncrement();
             $orgId = $this->Organisation->id;
         }
 

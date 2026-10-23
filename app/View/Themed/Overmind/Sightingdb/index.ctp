@@ -1,45 +1,37 @@
-<div class="row mb-4 mt-2">
-    <div class="col-12">
-        <div class="d-flex flex-column p-4">
-            <h5 class="mb-1 fw-bold text-primary-emphasis"><?= __('SightingDB Configuration') ?></h5>
-            <p class="mb-0 text-secondary-emphasis">
-                <?= __('SightingDB is an alternate database that MISP interconnects with to track indicator sightings. Manage your remote connections and synchronization settings below.') ?>
-            </p>
-        </div>
-    </div>
-</div>
-
 <?php
+// Title of the index displayed in the header section, leaving it empty will fallback to controller name
+$headerTitle = __('SightingDB Configuration');
+
+// Description displayed under the title in the header section, leave empty if not needed
+$headerDescription = __('SightingDB is an alternate database that MISP interconnects with to track indicator sightings. Manage your remote connections and synchronization settings below.');
+
+// Actions displayed as buttons in the header section, leave empty if not needed
+$headerActions = [];
+if ($this->Acl->canAccess('sightingdb', 'add')) {
+    $headerActions[] = [
+        'type' => 'modal',
+        'label' => __('Add SightingDB'),
+        'icon' => 'plus',
+        'url' => $baseurl . '/sightingdb/add'
+    ];
+}
+
+$this->set('headerTitle', $headerTitle);
+$this->set('headerDescription', $headerDescription);
+$this->set('headerActions', $headerActions);
+
+
 $fields = [
     [
-        'element' => 'selector',
+        'element' => 'checkbox',
         'data_path' => 'Sightingdb.id',
-        'active_path' => 'Sightingdb.active',
         'card_section' => 'selector',
-        'actions' => [
-            [
-                'type' => 'ajax',
-                'label' => __('Edit'),
-                'icon' => 'pen-to-square',
-                'url' => $baseurl . '/sightingdb/edit/%id%',
-                'requirement' => $isSiteAdmin
-            ],
-            [
-                'type' => 'ajax',
-                'label' => __('Delete'),
-                'icon' => 'trash',
-                'url' => $baseurl . '/sightingdb/deleteSelection/%id%',
-                'class' => 'text-danger',
-                'requirement' => $isSiteAdmin
-            ],
-        ]
     ],
     [
         'name' => __('ID'),
         'sort' => 'Sightingdb.id',
         'data_path' => 'Sightingdb.id',
         'element' => 'id',
-        'url' => '',
         'card_section' => 'top',
         'display_in' => ['table', 'card']
     ],
@@ -101,29 +93,64 @@ $fields = [
     ],
     [
         'name' => __('Org restrictions'),
-        'data_path' => 'Sightingdb.org_id',
-        'element' => 'id',
-        'url' => $baseurl . '/organisations/view/%id%',
-        'card_section' => 'extra',
+        'data_path' => 'Sightingdb.Organisation',
+        'element' => 'org_list',
+        'card_section' => 'meta',
         'display_in' => ['table','card']
-    ]
-];
-
-if ($this->Acl->canAccess('sightingdb', 'add')) {
-    $this->set('headerActions', [
-        [
-            'type' => 'ajax',
-            'label' => __('Add SightingDB'),
-            'icon' => 'plus',
-            'url' => $baseurl . '/sightingdb/add'
+    ],
+    [
+        'name' => __('Test'),
+        'data_path' => 'Sightingdb.id',
+        'element' => 'on_demand',
+        'url' => $baseurl . '/sightingdb/requestStatus/%id%.json',
+        'button' => __('Run'),
+        'icon' => 'plug',
+        'card_section' => 'meta',
+        'display_in' => ['table', 'card']
+    ],
+    [
+        'name' => __('Quick Search'),
+        'data_path' => 'Sightingdb.id',
+        'element' => 'on_demand',
+        'url' => $baseurl . '/sightingdb/search/%id%.json',
+        'button' => '',
+        'title' => __('Search'),
+        'icon' => 'magnifying-glass',
+        'text_input' => true,
+        'placeholder' => __('Value'),
+        'card_section' => 'meta',
+        'display_in' => ['table', 'card']
+    ],
+    [
+        'name' => __('Actions'),
+        'element' => 'row_actions',
+        'data_path' => 'Sightingdb.id',
+        'card_section' => 'extra',
+        'actions' => [
+            [
+                'type' => 'modal',
+                'label' => __('Edit'),
+                'icon' => 'pen-to-square',
+                'url' => $baseurl . '/sightingdb/edit/%id%',
+                'requirement' => $isSiteAdmin
+            ],
+            [
+                'type' => 'modal',
+                'label' => __('Delete'),
+                'icon' => 'trash',
+                'url' => $baseurl . '/sightingdb/deleteSelection/%id%',
+                'class' => 'text-danger',
+                'requirement' => $isSiteAdmin
+            ],
         ]
-    ]);
-}
+    ],
+];
 
 echo $this->element('genericElementsBS5/IndexTable/scaffold', [
     'scaffold_data' => [
         'data' => [
             'data' => $data,
+            'cards_per_row' => ['' => 1, 'lg' => 2, 'xxxxl' => 3],
             'filter_bar' => [
                 'pull' => 'right',
                 'children' => [

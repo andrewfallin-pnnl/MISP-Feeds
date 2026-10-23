@@ -179,7 +179,7 @@
         window.Alpine.data('etBuilder', () => {
         const cfg = getCfg();
         return {
-            envelope: {name: '', description: '', distribution: 0, active: 1, misp_default: 0},
+            envelope: {name: '', description: '', distribution: 0, active: 1, misp_default: 0, exposed: 0},
             definition: {
                 schema_version: 1, uuid: '', name: '',
                 event_defaults: {distribution: 0}, structure: []
@@ -553,6 +553,57 @@
             },
 
             // ---------- Tom Select pickers ----------
+            /**
+             * Binds the envelope's distribution picker — the compact
+             * choice_select the shell renders — to envelope.distribution.
+             *
+             * The TomSelect belongs to initChoiceSelects() (mispOvermind.js),
+             * which carries the distribution badges and runs on DOMContentLoaded.
+             * Whether it got there first or Alpine did decides nothing: the
+             * instance is claimed if it exists and built otherwise, and the
+             * change handler is registered on the instance rather than passed
+             * to a constructor this component no longer owns.
+             */
+            initEnvelopeDistributionSelect($el) {
+                if (!$el) { return; }
+
+                const push = (value) => {
+                    const level = parseInt(value, 10);
+                    if (!isNaN(level) && level !== this.envelope.distribution) {
+                        this.envelope.distribution = level;
+                    }
+                };
+
+                const attach = () => {
+                    if (!$el.tomselect
+                        && typeof window.initChoiceSelects === 'function') {
+                        window.initChoiceSelects(document);
+                    }
+
+                    const ts = $el.tomselect;
+                    if (!ts) {
+                        /* No TomSelect at all — the plain <select> still is the
+                           control, so read it straight. */
+                        $el.addEventListener('change', () => push($el.value));
+                        $el.value = String(this.envelope.distribution);
+                        return;
+                    }
+
+                    ts.on('change', push);
+                    ts.setValue(String(this.envelope.distribution), true);
+                    this.$watch('envelope.distribution', (value) => {
+                        if (ts.getValue() !== String(value)) {
+                            ts.setValue(String(value), true);
+                        }
+                    });
+                };
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', attach, {once: true});
+                } else {
+                    attach();
+                }
+            },
 
             initObjectTemplateSelect($el) {
                 if (typeof window.TomSelect === 'undefined') { return; }
@@ -701,6 +752,7 @@
                         distribution: Number(this.envelope.distribution) || 0,
                         active: this.envelope.active ? 1 : 0,
                         misp_default: this.envelope.misp_default ? 1 : 0,
+                        exposed: this.envelope.exposed ? 1 : 0,
                         definition: this.definition
                     }
                 };
@@ -710,7 +762,8 @@
                     headers: {
                         'Accept': 'application/json',
                         'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-Token': (window.csrfToken || '')
                     },
                     body: JSON.stringify(body)
                 }).then((r) => r.json().then((data) => ({status: r.status, data})))
@@ -741,7 +794,8 @@
                     headers: {
                         'Accept': 'application/json',
                         'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-Token': (window.csrfToken || '')
                     },
                     body: JSON.stringify(probe)
                 }).then((r) => r.json().then((data) => ({status: r.status, data})))

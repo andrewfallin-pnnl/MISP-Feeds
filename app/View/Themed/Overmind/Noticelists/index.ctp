@@ -1,28 +1,32 @@
 <?php
+// Title of the index displayed in the header section, leaving it empty will fallback to controller name
+$headerTitle = __('');
+
+// Description displayed under the title in the header section, leave empty if not needed
+$headerDescription = __('');
+
+// Actions displayed as buttons in the header section, leave empty if not needed
+$headerActions = [];
+if ($this->Acl->canAccess('noticelists', 'update')) {
+    $headerActions[] = [
+        'type' => 'action',
+        'label' => __('Update Noticelists'),
+        'icon' => 'sync',
+        'url' => $baseurl . '/noticelists/update'
+    ];
+}
+
+$this->set('headerTitle', $headerTitle);
+$this->set('headerDescription', $headerDescription);
+$this->set('headerActions', $headerActions);
+
+
 $fields = [
     [
-        'element' => 'selector',
+        'element' => 'checkbox',
         'data_path' => 'Noticelist.id',
         'enable_path' => 'Noticelist.enabled',
         'card_section' => 'selector',
-        'actions' => [
-            [
-                'type' => 'link',
-                'label' => __('View'),
-                'icon' => 'eye',
-                'url' => $baseurl . '/noticelists/view/%id%'
-            ],
-            [
-                'type' => 'toggle',
-                'label_on' => __('Disable'),
-                'label_off' => __('Enable'),
-                'icon_on' => 'stop text-danger',
-                'icon_off' => 'play text-success',
-                'url' => '/noticelists/%action%/%id%',
-                'enable_path' => 'Noticelist.enabled',
-                'requirement' => $isSiteAdmin
-            ]
-        ]
     ],
     [
         'name' => __('ID'),
@@ -85,23 +89,39 @@ $fields = [
         'requirement' => !$isSiteAdmin,
         'display_in' => ['table', 'card']
     ],
+    [
+        'name' => __('Actions'),
+        'element' => 'row_actions',
+        'data_path' => 'Noticelist.id',
+        'enable_path' => 'Noticelist.enabled',
+        'card_section' => 'extra',
+        'actions' => [
+            [
+                'type' => 'navigate',
+                'label' => __('View'),
+                'icon' => 'eye',
+                'url' => $baseurl . '/noticelists/view/%id%'
+            ],
+            [
+                'type' => 'toggle',
+                'label_on' => __('Disable'),
+                'label_off' => __('Enable'),
+                'icon_on' => 'fas fa-stop text-danger',
+                'icon_off' => 'fas fa-play text-success',
+                'url' => '/noticelists/%action%/%id%',
+                'enable_path' => 'Noticelist.enabled',
+                'requirement' => $isSiteAdmin
+            ]
+        ]
+    ]
 ];
 
-if ($this->Acl->canAccess('noticelists', 'update')) {
-    $this->set('headerActions', [
-        [
-            'type' => 'post',
-            'label' => __('Update Noticelists'),
-            'icon' => 'sync',
-            'url' => $baseurl . '/noticelists/update'
-        ]
-    ]);
-}
 
 echo $this->element('genericElementsBS5/IndexTable/scaffold', [
     'scaffold_data' => [
         'data' => [
             'data' => $data,
+            'cards_per_row' => ['' => 1, 'lg' => 2, 'xxxxl' => 3],
             'filter_bar' => [
                 'pull' => 'right',
                 'children' => [
@@ -115,6 +135,8 @@ echo $this->element('genericElementsBS5/IndexTable/scaffold', [
                 'enable' => 1
             ],
             'fields' => $fields,
+            'primary_id_path' => 'Noticelist.id',
+            'row_dblclick_url' => $baseurl . '/noticelists/view/%id%',
         ]
     ],
     'item_url' => '/noticelists'

@@ -102,7 +102,7 @@ class UserSetting extends AppModel
         ),
         'event_index_hide_columns' => [
             'placeholder' => ['clusters'],
-            //'validation' => 'validate_json',
+            'validation' => 'validate_event_index_hide_columns',
         ],
         'oidc' => [ // Data saved by OIDC plugin
             'internal' => true,
@@ -132,15 +132,66 @@ class UserSetting extends AppModel
             'options' => ['all', 'wizard'],
             'validation' => 'validate_event_template_user_form_mode',
         ],
+        // Dashboard v2 light/dark appearance (DD-51). Stopgap per-user
+        // toggle until a global MISP dark theme ships: 'auto' (default —
+        // follow the browser's prefers-color-scheme), 'light', or 'dark'.
+        // The dashboard reads this server-side to seed data-theme before
+        // first paint; DashboardsController::updateTheme persists explicit
+        // light/dark choices. Stored as a bare scalar string (not JSON).
+        'dashboard_theme' => [
+            'placeholder' => 'auto',
+            'options' => ['auto', 'light', 'dark'],
+            'validation' => 'validate_dashboard_theme',
+        ],
+        // One-shot marker for the Overmind onboarding tour. Set at a user's
+        // very first login and cleared the first time the tour is actually
+        // displayed, so a brand new account is walked through the interface
+        // exactly once. Internal: it is plumbing, not a user preference.
+        'onboarding_pending' => [
+            'internal' => true,
+            'placeholder' => true,
+            'validation' => 'validate_json',
+        ],
     );
 
     public static function validate_homepage($value, $user)
     {
-        $path = json_decode($value, true);
-        if (empty($path['path'])) {
+        // If it's already an array, use it. Otherwise, decode the string.
+        $path = is_string($value) ? json_decode($value, true) : $value;
+
+        if (!is_array($path) || empty($path['path']) || !is_string($path['path'])) {
             return false;
         }
-        return str_starts_with($path['path'], '/');
+        // A leading '/' is not enough: '//attacker.example' also starts with
+        // one and is a protocol-relative, off-site URL once it reaches a
+        // Location header. Share the check with the other post-login
+        // navigation target (pre_login_requested_url) instead of keeping a
+        // second, weaker variant of it here.
+        App::uses('InternalRedirectValidator', 'Tools');
+        return InternalRedirectValidator::sanitize($path['path']) !== '';
+    }
+
+    /**
+     * The user's homepage as a safe, same-origin path.
+     *
+     * Revalidated on read, not merely on write: the rows this reads may
+     * predate the store-time check above, and setSettingInternal() writes
+     * without running any validator at all. Every consumer of the homepage
+     * setting - the post-login redirect, the news page's "continue" link
+     * and the menu logo - goes through here, so one guard covers all of
+     * them and there is nothing left to sweep in the database.
+     *
+     * @param int $userId
+     * @return string The path to navigate to, or '' when unset or unsafe.
+     */
+    public function getHomepagePath($userId)
+    {
+        $homepage = $this->getValueForUser($userId, 'homepage');
+        if (!is_array($homepage) || empty($homepage['path']) || !is_string($homepage['path'])) {
+            return '';
+        }
+        App::uses('InternalRedirectValidator', 'Tools');
+        return InternalRedirectValidator::sanitize($homepage['path']);
     }
 
     public static function validate_theme($value, $user)
@@ -154,12 +205,66 @@ class UserSetting extends AppModel
         return true;
     }
 
+        public static function validate_event_index_hide_columns($value, $user)
+        {
+            // Valid column names that can be hidden in the event index
+            $validColumns = [
+                'owner_org',
+                'is_extension',
+                'clusters',
+                'tags',
+                'highlights',
+                'attribute_count',
+                'correlations',
+                'report_count',
+                'sightings',
+                'proposals',
+                'creator_user',
+                'timestamp',
+                'publish_timestamp'
+            ];
+
+            // Decode if it's a JSON string
+            if (is_string($value)) {
+                $decoded = json_decode($value, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $value = $decoded;
+                }
+            }
+
+            // Empty array is valid
+            if (empty($value)) {
+                return true;
+            }
+
+            // Must be an array
+            if (!is_array($value)) {
+                return false;
+            }
+
+            // All column names must be valid
+            foreach ($value as $column) {
+                if (!in_array($column, $validColumns, true)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
     public static function validate_event_template_user_form_mode($value, $user)
     {
         if (empty($value)) {
             return true;
         }
         return in_array($value, self::VALID_SETTINGS['event_template_user_form_mode']['options'], true);
+    }
+
+    public static function validate_dashboard_theme($value, $user)
+    {
+        if (empty($value)) {
+            return true;
+        }
+        return in_array($value, self::VALID_SETTINGS['dashboard_theme']['options'], true);
     }
 
     public static function validate_json($value, $user)
@@ -244,6 +349,32 @@ class UserSetting extends AppModel
             }
         }
         return $output;
+    }
+
+    /**
+     * One line per setting on what it changes for the user it belongs to.
+     * Kept apart from VALID_SETTINGS because a constant cannot be translated.
+     *
+     * @return array<string, string>
+     */
+    public function settingDescriptions()
+    {
+        return [
+            'publish_alert_filter' => __('Filters which published events send you an email alert. Matched against the event, its tags and its organisations.'),
+            'dashboard_access' => __('Legacy flag that granted access to the dashboard. Kept for compatibility, it no longer gates anything.'),
+            'dashboard' => __('Layout of your legacy dashboard: the widgets shown, their configuration and their position on the grid.'),
+            'homepage' => __('The page you land on after logging in and when clicking the MISP logo.'),
+            'default_restsearch_parameters' => __('Parameters merged into every restSearch query you run, unless the query overrides them.'),
+            'tag_numerical_value_override' => __('Replaces the numerical value of the listed tags with your own, for the scores computed on your behalf (e.g. decaying models).'),
+            'event_index_hide_columns' => __('Columns hidden from your event index.'),
+            'oidc' => __('Data stored by the OpenID Connect plugin for this account. Managed automatically.'),
+            'periodic_notification_filters' => __('Filters which events make it into your periodic (daily, weekly, monthly) summary emails.'),
+            'ui_beta_opt_in' => __('Opts you in to interface features still in beta.'),
+            'ui_theme' => __('The interface theme used for your account.'),
+            'event_template_user_form_mode' => __('How an event template form is shown to you: every step at once (all) or one step at a time (wizard).'),
+            'dashboard_theme' => __('Light or dark appearance of the dashboard; auto follows your browser.'),
+            'onboarding_pending' => __('Marks that the onboarding tour still has to be shown. Cleared once the tour has been displayed.'),
+        ];
     }
 
     public function getInternalSettingNames()
@@ -343,7 +474,12 @@ class UserSetting extends AppModel
          if ($user['Role']['perm_site_admin']) {
              return true;
          } else if ($user['Role']['perm_admin']) {
-             if ($user['org_id'] === $setting['User']['org_id']) {
+             // An org admin may not manage a site admin's setting, even when the
+             // site admin belongs to the same organisation.
+             if (
+                 $user['org_id'] === $setting['User']['org_id'] &&
+                 !$this->User->isUserSiteAdmin($setting['UserSetting']['user_id'])
+             ) {
                  return true;
              }
          } else {
@@ -550,17 +686,27 @@ class UserSetting extends AppModel
             throw new MethodNotAllowedException(__('User self-management is disabled on this instance.'));
         }
         if (!empty($data['UserSetting']['user_id']) && is_numeric($data['UserSetting']['user_id'])) {
+            $targetUserId = $data['UserSetting']['user_id'];
             $user_to_edit = $this->User->find('first', array(
                 'recursive' => -1,
-                'conditions' => array('User.id' => $data['UserSetting']['user_id']),
+                'conditions' => array('User.id' => $targetUserId),
                 'fields' => array('User.org_id')
             ));
-            if (
+            // A user may always edit their own settings. A site admin may edit
+            // anyone's. An org admin may edit non-site-admin users within their
+            // own org. Anything else is an explicit authorisation failure rather
+            // than a silent fall-through to the acting user's own settings.
+            $authorised =
+                ($targetUserId == $user['id']) ||
                 !empty($user['Role']['perm_site_admin']) ||
-                (!empty($user['Role']['perm_admin']) && ($user_to_edit['User']['org_id'] == $user['org_id']))
-            ) {
-                $userSetting['user_id'] = $data['UserSetting']['user_id'];
+                (!empty($user['Role']['perm_admin'])
+                    && !empty($user_to_edit)
+                    && ($user_to_edit['User']['org_id'] == $user['org_id'])
+                    && !$this->User->isUserSiteAdmin($targetUserId));
+            if (!$authorised) {
+                throw new MethodNotAllowedException(__('You are not authorised to edit the settings of this user.'));
             }
+            $userSetting['user_id'] = $targetUserId;
         }
         if (empty($userSetting['user_id'])) {
             $userSetting['user_id'] = $user['id'];

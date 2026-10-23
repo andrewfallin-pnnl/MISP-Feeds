@@ -43,9 +43,16 @@ class EventTemplatesController extends AppController
     public function beforeFilter()
     {
         parent::beforeFilter();
+        // The builder and the user form post hand-built JSON, so they carry the
+        // CSRF token in the X-CSRF-Token header rather than in _Token fields.
+        $this->_csrfTokenHeaderOnly(['add', 'edit', 'update', 'instantiate', 'validate_definition']);
         $missing = EventTemplateDependencies::missing();
         if (!empty($missing)) {
-            return $this->__renderDependencyMissing($missing);
+            $response = $this->__renderDependencyMissing($missing);
+            if ($response instanceof CakeResponse) {
+                $response->send();
+            }
+            $this->_stop();
         }
     }
 
@@ -74,6 +81,7 @@ class EventTemplatesController extends AppController
             'filters' => array(
                 'EventTemplate.name', 'EventTemplate.uuid',
                 'EventTemplate.description', 'EventTemplate.active',
+                'EventTemplate.exposed',
                 'EventTemplate.org_id', 'searchall',
             ),
             'quickFilters' => array(
@@ -110,6 +118,45 @@ class EventTemplatesController extends AppController
             1 => __('Community'),
         ));
         $this->set('list', $this->viewVars['data']);
+    }
+
+    /**
+     * Exposed-only listing — the Draugnet pull contract (PRD §7 M3).
+     *
+     * Returns every event template flagged `exposed = 1` that is also
+     * readable by the requesting account under the normal read ACL
+     * (own-org OR community; site admins see all). Exposing is an
+     * additive marker, not a privilege escalation, so the visibility
+     * conditions still apply — an exposed template the caller couldn't
+     * otherwise read is not returned.
+     *
+     * REST callers (Draugnet's `misp` template source, authenticating
+     * with a service key) receive a lean, unpaginated JSON array under
+     * the usual `{EventTemplate: {...}}` envelope per row; each row
+     * carries the full decoded `definition`, which Draugnet
+     * re-validates against event-template-v1 before rendering a form.
+     *
+     * The HTML surface redirects to the standard index filtered by
+     * `exposed=1`, so operators review exposure in the familiar table.
+     */
+    public function exposed()
+    {
+        if (!$this->IndexFilter->isRest()) {
+            $this->redirect(array(
+                'action' => 'index',
+                '?' => array('exposed' => 1),
+            ));
+            return;
+        }
+
+        $conditions = $this->__visibilityConditions();
+        $conditions['EventTemplate.exposed'] = 1;
+        $templates = $this->EventTemplate->find('all', array(
+            'recursive' => -1,
+            'conditions' => $conditions,
+            'order' => array('EventTemplate.name' => 'ASC'),
+        ));
+        return $this->RestResponse->viewData($templates, 'json');
     }
 
     public function view($id)
@@ -150,6 +197,53 @@ class EventTemplatesController extends AppController
         }
     }
 
+    public function deleteSelection($id = null)
+    {
+        if (!$this->request->is(array('post', 'put', 'delete'))) {
+            // Deleting a library-managed template only holds until the next
+            // library update re-imports it — worth saying before, not after.
+            $idList = is_numeric($id)
+                ? array($id)
+                : (json_decode((string)$id, true) ?: array());
+            $libraryManaged = empty($idList) ? 0 : (int)$this->EventTemplate->find('count', array(
+                'recursive' => -1,
+                'conditions' => array(
+                    'EventTemplate.id' => $idList,
+                    'EventTemplate.misp_default' => 1,
+                ),
+            ));
+            $this->set('libraryManaged', $libraryManaged);
+        }
+
+        return $this->CRUD->deleteSelection($id, array(
+            'modelName' => 'EventTemplate',
+            'restName' => 'EventTemplates',
+            'itemName' => 'event template',
+            'view' => 'ajax/eventTemplateDeleteConfirmationForm',
+            'checkModifyCallback' => function ($itemId) {
+                // Same write ACL as delete()/edit(): own org, or site admin.
+                return !empty($this->EventTemplate->find('first', array(
+                    'recursive' => -1,
+                    'fields' => array('EventTemplate.id'),
+                    'conditions' => array(
+                        'AND' => array(
+                            array('EventTemplate.id' => $itemId),
+                            $this->__writeConditions(),
+                        ),
+                    ),
+                )));
+            },
+            'multiSuccessMessageCallback' => function ($count) {
+                return __n(
+                    '%s event template deleted.',
+                    '%s event templates deleted.',
+                    $count,
+                    $count
+                );
+            },
+        ));
+    }
+
     public function add()
     {
         if (!$this->request->is('post') && !$this->request->is('put')) {
@@ -169,6 +263,12 @@ class EventTemplatesController extends AppController
                 ? (int)$input['distribution']
                 : 0,
             'active' => (!array_key_exists('active', $input) || $input['active'])
+                ? 1
+                : 0,
+            // Unlike `active` (on by default), exposing a template to
+            // Draugnet is an explicit opt-in: default 0 unless the caller
+            // sends a truthy `exposed`.
+            'exposed' => (array_key_exists('exposed', $input) && $input['exposed'])
                 ? 1
                 : 0,
             'org_id' => (int)$this->Auth->user('org_id'),
@@ -231,6 +331,12 @@ class EventTemplatesController extends AppController
             // round-trips as a PHP bool through Cake's read path, which the
             // boolean validator would otherwise reject on re-save.
             $row['misp_default'] = (int)(bool)$row['misp_default'];
+        }
+        if (array_key_exists('exposed', $row)) {
+            // Merged from the existing row (a tinyint(1) → PHP bool) or from
+            // caller input; coerce to a clean int so it persists as 0/1 and
+            // an untouched value is preserved across edits.
+            $row['exposed'] = (int)(bool)$row['exposed'];
         }
         $row['id'] = $id;
         $this->EventTemplate->id = $id;
@@ -330,6 +436,16 @@ class EventTemplatesController extends AppController
         ));
     }
 
+    private function __decodeImportJson($value)
+    {
+        try {
+            $decoded = JsonTool::decode($value);
+        } catch (Exception $e) {
+            return null;
+        }
+        return is_array($decoded) ? $decoded : null;
+    }
+
     private function __readImportPayload()
     {
         $data = $this->request->data;
@@ -343,8 +459,7 @@ class EventTemplatesController extends AppController
             && is_uploaded_file($fileMeta['tmp_name'])
         ) {
             $content = file_get_contents($fileMeta['tmp_name']);
-            $decoded = JsonTool::decode($content);
-            return is_array($decoded) ? $decoded : null;
+            return $this->__decodeImportJson($content);
         }
 
         // UI form path: textarea paste in the `json` field.
@@ -361,8 +476,7 @@ class EventTemplatesController extends AppController
             $pasted = $data['json'];
         }
         if ($pasted !== null) {
-            $decoded = JsonTool::decode($pasted);
-            return is_array($decoded) ? $decoded : null;
+            return $this->__decodeImportJson($pasted);
         }
 
         // REST path: request->data is the export document itself. We
@@ -379,8 +493,8 @@ class EventTemplatesController extends AppController
         // Content-Type header CakePHP recognises.
         $raw = $this->request->input();
         if (is_string($raw) && $raw !== '') {
-            $decoded = JsonTool::decode($raw);
-            if (is_array($decoded)) {
+            $decoded = $this->__decodeImportJson($raw);
+            if ($decoded !== null) {
                 return $decoded;
             }
         }
@@ -389,12 +503,18 @@ class EventTemplatesController extends AppController
 
     public function duplicate($id)
     {
-        if (!$this->request->is('post')) {
-            throw new MethodNotAllowedException(
-                __('Duplicate requires POST.')
-            );
-        }
         $id = $this->__resolveId($id);
+        if (!$this->request->is('post')) {
+            if ($this->IndexFilter->isRest()) {
+                throw new MethodNotAllowedException(
+                    __('Duplicate requires POST.')
+                );
+            }
+            $this->set('template', $this->__fetchForRead($id)['EventTemplate']);
+            $this->set('id', $id);
+            $this->layout = false;
+            return $this->render('ajax/eventTemplateDuplicateConfirmationForm');
+        }
         $source = $this->__fetchForRead($id);
 
         $definition = $source['EventTemplate']['definition'];
@@ -494,7 +614,7 @@ class EventTemplatesController extends AppController
         $this->Flash->success(__('Event created from template.'));
         $this->redirect(array(
             'controller' => 'events',
-            'action' => 'view',
+            'action' => 'view2',
             $result['event_id'],
         ));
     }
@@ -1010,11 +1130,17 @@ class EventTemplatesController extends AppController
             );
         }
         $this->set('taxonomiesAvailable', $taxonomies);
-
         $this->loadModel('Galaxy');
         $galaxyRows = $this->Galaxy->find('all', array(
             'recursive' => -1,
-            'conditions' => array('Galaxy.enabled' => true),
+            'conditions' => array(
+                'Galaxy.enabled' => true,
+                // Use the canonical galaxy visibility filter. The previous hand-rolled condition
+                // `'Galaxy.distribution' > 0` was a PHP comparison (always evaluating to true), not a
+                // query condition, so every org's galaxies - including org-only (distribution 0) custom
+                // galaxies belonging to other orgs - leaked into the template builder list.
+                $this->Galaxy->buildConditions($this->Auth->user()),
+            ),
             'fields' => array(
                 'Galaxy.type',
                 'Galaxy.description',
@@ -1058,9 +1184,9 @@ class EventTemplatesController extends AppController
                 'type' => 'json',
             ));
         }
-        $this->set('message', $message);
+        $this->set('headerDescription', $message);
         $this->set('missing', $missing);
-        $this->set('title_for_layout', __('Event templating unavailable'));
+        $this->set('headerTitle', __('Event templating unavailable'));
         return $this->render('dependency_missing');
     }
 }

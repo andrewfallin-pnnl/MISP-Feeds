@@ -394,6 +394,87 @@ class AnalystData extends AppModel
         throw new NotFoundException(__('Invalid UUID'));
     }
 
+    /**
+     * Which of the given targets still resolve on this instance for $user.
+     *
+     * Analyst data outlives what it points at: an event can be deleted, and a
+     * note can arrive through a sync without the object it annotates ever
+     * following. A UUID on its own therefore says nothing about whether there
+     * is anything to open.
+     *
+     * One lookup per distinct type, so a page of rows costs a handful of
+     * queries rather than one per row.
+     *
+     * @param array $user
+     * @param array $targets list of ['type' => string, 'uuid' => string]
+     * @return array uuid => true for every target that resolves
+     */
+    public function existingTargets(array $user, array $targets): array
+    {
+        $byType = [];
+        foreach ($targets as $target) {
+            $type = $target['type'] ?? '';
+            $uuid = $target['uuid'] ?? '';
+            if ($uuid === '' || !in_array($type, self::valid_targets, true)) {
+                continue;
+            }
+            $byType[$type][$uuid] = $uuid;
+        }
+
+        $found = [];
+        foreach ($byType as $type => $uuids) {
+            foreach ($this->__resolveTargetsOfType($user, $type, array_values($uuids)) as $uuid) {
+                $found[$uuid] = true;
+            }
+        }
+        return $found;
+    }
+
+    /**
+     * @param array $user
+     * @param string $type one of self::valid_targets
+     * @param array $uuids
+     * @return array the subset of $uuids that exists and is visible to $user
+     */
+    private function __resolveTargetsOfType(array $user, string $type, array $uuids): array
+    {
+        if ($type === 'Attribute') {
+            $model = ClassRegistry::init('MispAttribute');
+            $rows = $model->fetchAttributesSimple($user, [
+                'conditions' => ['Attribute.uuid' => $uuids],
+                'fields' => ['Attribute.uuid'],
+            ]);
+            return array_column(array_column($rows, 'Attribute'), 'uuid');
+        }
+        if ($type === 'Object') {
+            $model = ClassRegistry::init('MispObject');
+            $rows = $model->fetchObjectSimple($user, [
+                'conditions' => ['Object.uuid' => $uuids],
+                'fields' => ['Object.uuid'],
+            ]);
+            return array_column(array_column($rows, 'Object'), 'uuid');
+        }
+
+        $model = ClassRegistry::init($type);
+        $alias = $model->alias;
+        if ($type === 'Event') {
+            $conditions = $model->createEventConditions($user);
+        } elseif (in_array($type, self::ANALYST_DATA_TYPES, true)) {
+            $conditions = $model->buildConditions($user);
+        } else {
+            $conditions = [];
+        }
+        $conditions['AND'][] = ["{$alias}.uuid" => $uuids];
+        return $model->find('column', [
+            'conditions' => $conditions,
+            'fields' => ["{$alias}.uuid"],
+            'recursive' => -1,
+            // Existence, nothing else - afterFind on these models resolves
+            // organisations, sharing groups and edit rights per row.
+            'callbacks' => false,
+        ]);
+    }
+
     public function getAnalystDataTypeFromUUID($uuid)
     {
         foreach (self::ANALYST_DATA_TYPES as $type) {
@@ -606,6 +687,51 @@ class AnalystData extends AppModel
         return array_unique(array_merge($existingRelationships, $objectRelationships));
     }
 
+    /**
+     * Total analyst data attached to an object, counted RECURSIVELY: the object's 
+     * (direct notes/opinions/relationships, plus analyst data at any depth
+     */
+    public function countForObjectRecursive(array $user, string $objectUuid): int
+    {
+        $models = [
+            'Note' => ClassRegistry::init('Note'),
+            'Opinion' => ClassRegistry::init('Opinion'),
+            'Relationship' => ClassRegistry::init('Relationship'),
+        ];
+        $total = 0;
+        $frontier = [$objectUuid];
+        $seen = [$objectUuid => true];
+        // Walk the tree level by level
+        while (!empty($frontier)) {
+            $next = [];
+            foreach ($models as $alias => $model) {
+                $rows = $model->find('all', [
+                    'recursive' => -1,
+                    'fields' => [$alias . '.uuid'],
+                    'conditions' => array_merge(['object_uuid' => $frontier], $model->buildConditions($user)),
+                    'callbacks' => false,
+                ]);
+                foreach ($rows as $row) {
+                    $total++;
+                    $childUuid = $row[$alias]['uuid'];
+                    if (empty($seen[$childUuid])) {
+                        $seen[$childUuid] = true;
+                        $next[] = $childUuid;
+                    }
+                }
+            }
+            $frontier = $next;
+        }
+        // Inbound relationships (they point to this object; shown flat in the card).
+        $total += (int)$models['Relationship']->find('count', [
+            'recursive' => -1,
+            'conditions' => array_merge(['related_object_uuid' => $objectUuid], $models['Relationship']->buildConditions($user)),
+            'callbacks' => false,
+        ]);
+
+        return $total;
+    }
+
     public function getChildren($user, $uuid, $depth=2): array
     {
         $analystData = $this->fetchSimple($user, $uuid);
@@ -709,6 +835,22 @@ class AnalystData extends AppModel
             $saveSuccess = $analystModel->save($analystData);
             $saveSuccess = true;
         } else {
+            // DPT-4: a regular (non-sync, non-site-admin) caller - the web
+            // add/edit afterSave, or analyst data nested in an object/
+            // attribute/report/event capture - must not be able to overwrite
+            // an existing record it could not edit directly. The incoming
+            // orgc_uuid was already force-rewritten to the caller's own org
+            // above, so authorise against the EXISTING (DB) record's orgc.
+            // The sync/pull path (perm_sync) is intentionally exempt and keeps
+            // its locked + timestamp semantics below.
+            if (
+                !$user['Role']['perm_sync'] && !$user['Role']['perm_site_admin'] &&
+                !$analystModel->canEditAnalystData($user, $existingAnalystData, $type)
+            ) {
+                $results['errors'][] = __('Cannot edit analyst data (%s) created by another organisation.', $analystData[$type]['uuid']);
+                $results['failed']++;
+                return $results;
+            }
             if (!$existingAnalystData[$type]['locked'] && empty($server['Server']['internal'])) {
                 $results['errors'][] = __('Blocked an edit to an analyst data that was created locally. This can happen if a synchronised analyst data that was created on this instance was modified by an administrator on the remote side.');
                 $results['failed']++;

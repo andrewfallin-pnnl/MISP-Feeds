@@ -3,60 +3,9 @@
 if ($taxonomy['enabled']) {
     $fields = [
         [
-            'element' => 'selector',
-            'data_path' => 'existing_tag.Tag.id',
-            'card_section' => 'selector',
-            'actions' => [
-                [
-                    'type' => 'ajax',
-                    'label' => __('Create Tag'),
-                    'icon' => 'plus',
-                    'url' => $baseurl . '/taxonomies/addTag/taxonomy_id:' . $taxonomy['id'] . '/name:%tag%',
-                    'url_params_data_paths' => ['tag' => 'tag'],
-                    'requirement' => function ($row) use ($isAclTagger, $taxonomy) {
-                        return $isAclTagger && $taxonomy['enabled'] && empty($row['existing_tag']);
-                    }
-                ],
-                [
-                    'type' => 'link',
-                    'label' => __('View graph'),
-                    'icon' => 'eye',
-                    'url' => $baseurl . '/tags/viewGraph/%id%',
-                    'requirement' => function ($row) use ($isAclTagger, $taxonomy) {
-                        return $isAclTagger && $taxonomy['enabled'] && !empty($row['existing_tag']);
-                    }
-                ],
-                [
-                    'type' => 'ajax',
-                    'label' => __('Update'),
-                    'icon' => 'sync',
-                    'url' => $baseurl . '/taxonomies/addTag/taxonomy_id:' . $taxonomy['id'] . '/update:1/name:%tag%',
-                    'url_params_data_paths' => ['tag' => 'tag'],
-                    'requirement' => function ($row) use ($isAclTagger, $taxonomy) {
-                        return $isAclTagger && $taxonomy['enabled'] && !empty($row['existing_tag']) && empty($row['existing_tag']['Tag']['hide_tag']);
-                    }
-                ],
-                [
-                    'type' => 'ajax',
-                    'label' => __('Enable'),
-                    'icon' => 'play text-success',
-                    'url' => $baseurl . '/taxonomies/addTag/taxonomy_id:' .  $taxonomy['id'] . '/enable:1/name:%tag%',
-                    'url_params_data_paths' => ['tag' => 'tag'],
-                    'requirement' => function ($row) use ($isAclTagger, $taxonomy) {
-                        return $isAclTagger && $taxonomy['enabled'] && !empty($row['existing_tag']) && !empty($row['existing_tag']['Tag']['hide_tag']);
-                    }
-                ],
-                [
-                    'type' => 'ajax',
-                    'label' => __('Disable'),
-                    'icon' => 'stop text-danger',
-                    'url' => $baseurl . '/taxonomies/disableTag/taxonomy_id:' .  $taxonomy['id'] . '/name:%tag%',
-                    'url_params_data_paths' => ['tag' => 'tag'],
-                    'requirement' => function ($row) use ($isAclTagger, $taxonomy) {
-                        return $isAclTagger && $taxonomy['enabled'] && !empty($row['existing_tag']) && empty($row['existing_tag']['Tag']['hide_tag']);
-                    }
-                ]
-            ]
+        'element' => 'checkbox',
+        'data_path' => 'existing_tag.id',
+        'card_section' => 'selector',
         ],
         [
             'name' => __('Tag'),
@@ -89,6 +38,64 @@ if ($taxonomy['enabled']) {
             'element' => 'tag_relations',
             'card_section' => 'meta',
             'display_in' => ['table','card']
+        ],
+        [
+            'name' => __('Actions'),
+            'element' => 'row_actions',
+            'data_path' => 'existing_tag.id',
+            'card_section' => 'extra',
+            'display_in' => ['table','card'],
+            'actions' => [
+                [
+                    'type' => 'modal',
+                    'label' => __('Create Tag'),
+                    'icon' => 'plus',
+                    'url' => $baseurl . '/taxonomies/addTag/taxonomy_id:' . $taxonomy['id'] . '/name:%tag%',
+                    'url_params_data_paths' => ['tag' => 'tag'],
+                    'requirement' => function ($row) use ($isAclTagger, $taxonomy) {
+                        return $isAclTagger && $taxonomy['enabled'] && empty($row['existing_tag']);
+                    }
+                ],
+                [
+                    'type' => 'navigate',
+                    'label' => __('View graph'),
+                    'icon' => 'eye',
+                    'url' => $baseurl . '/tags/viewGraph/%id%',
+                    'requirement' => function ($row) use ($isAclTagger, $taxonomy) {
+                        return $isAclTagger && $taxonomy['enabled'] && !empty($row['existing_tag']);
+                    }
+                ],
+                [
+                    'type' => 'modal',
+                    'label' => __('Update'),
+                    'icon' => 'sync',
+                    'url' => $baseurl . '/taxonomies/addTag/taxonomy_id:' . $taxonomy['id'] . '/update:1/name:%tag%',
+                    'url_params_data_paths' => ['tag' => 'tag'],
+                    'requirement' => function ($row) use ($isAclTagger, $taxonomy) {
+                        return $isAclTagger && $taxonomy['enabled'] && !empty($row['existing_tag']) && empty($row['existing_tag']['Tag']['hide_tag']);
+                    }
+                ],
+                [
+                    'type' => 'modal',
+                    'label' => __('Enable'),
+                    'icon' => 'play',
+                    'url' => $baseurl . '/taxonomies/addTag/taxonomy_id:' .  $taxonomy['id'] . '/enable:1/name:%tag%',
+                    'url_params_data_paths' => ['tag' => 'tag'],
+                    'requirement' => function ($row) use ($isAclTagger, $taxonomy) {
+                        return $isAclTagger && $taxonomy['enabled'] && !empty($row['existing_tag']) && !empty($row['existing_tag']['Tag']['hide_tag']);
+                    }
+                ],
+                [
+                    'type' => 'modal',
+                    'label' => __('Disable'),
+                    'icon' => 'stop',
+                    'url' => $baseurl . '/taxonomies/disableTag/taxonomy_id:' .  $taxonomy['id'] . '/name:%tag%',
+                    'url_params_data_paths' => ['tag' => 'tag'],
+                    'requirement' => function ($row) use ($isAclTagger, $taxonomy) {
+                        return $isAclTagger && $taxonomy['enabled'] && !empty($row['existing_tag']) && empty($row['existing_tag']['Tag']['hide_tag']);
+                    }
+                ]
+            ]
         ],
     ];
 } else {

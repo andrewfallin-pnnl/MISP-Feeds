@@ -224,6 +224,7 @@ abstract class StixExport
             'source' => $cluster['source'],
             'authors' => $cluster['authors'],
             'uuid' => $cluster['uuid'],
+            'meta' => $cluster['meta'],
             'timestamp' => $timestamp
         ];
         return $arranged_cluster;
@@ -347,13 +348,13 @@ abstract class StixExport
         $framingCmd = $this->__initiate_framing_params();
         try {
             $framing = JsonTool::decode(ProcessTool::execute($framingCmd, null, true));
-            if (isset($framing['error'])) {
-                throw new Exception("Framing command error: " . $framing['error']);
-            }
-            return $framing;
         } catch (Exception $e) {
             throw new Exception("Could not get results from framing cmd when exporting STIX file.", 0, $e);
         }
+        if (isset($framing['error'])) {
+            throw new Exception("Framing command error: " . $framing['error']);
+        }
+        return $framing;
     }
 
     private function __merge_galaxy_tag(&$galaxies, $tag_name)
